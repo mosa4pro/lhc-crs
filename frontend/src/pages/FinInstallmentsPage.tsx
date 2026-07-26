@@ -258,8 +258,13 @@ export const FinInstallmentsPage = () => {
   const handlePay = async () => {
     if (!selInst || !student) return;
     if (!payAmount || parseFloat(payAmount) <= 0) { toast.error('المبلغ مطلوب'); return; }
-    if (!payRef.trim()) { toast.error('رقم المرجع مطلوب'); return; }
-    if (payDest === 'US') {
+    if (payDest === 'ENTITY') {
+      // CASH to entity — accept without reference but warn
+      if (!payRef.trim()) {
+        const ok = window.confirm('لم يتم إدخال رقم المرجع. هل تريد متابعة تسجيل الدفعة بدون رقم مرجع؟');
+        if (!ok) return;
+      }
+    } else if (payDest === 'US') {
       if (payMethod === 'TRANSFER' && !paySubMethod) { toast.error('يرجى اختيار نوع المحفظة الإلكترونية'); return; }
       if (payMethod === 'CHECK') { if (!payBank) { toast.error('يرجى اختيار البنك'); return; } if (!payCheckNum.trim()) { toast.error('رقم الشيك مطلوب'); return; } }
       if (payMethod === 'MONEY_TRANSFER') { if (!paySubMethod) { toast.error('يرجى اختيار نوع الحوالة'); return; } if (!payHawalaNum.trim()) { toast.error('رقم الحوالة مطلوب'); return; } }
@@ -870,19 +875,26 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
               ) : (
                 <div className="glass-table-container" style={{ marginBottom: 12 }}>
                   <table className="glass-table" style={{ fontSize: '0.75rem' }}>
-                    <thead>
-                      <tr><th>النوع</th><th>الاسم</th><th>الكلفة</th><th>دفعات</th><th>التاريخ</th></tr>
-                    </thead>
-                    <tbody>
-                      {subs.map(sub => {
-                        const isD = !!(sub as any).diploma;
-                        const active = selSub?.id === sub.id && selSub?.id !== 'EXTRA';
-                        return (
+                      <thead>
+                        <tr><th>النوع</th><th>الاسم</th><th>الكلفة</th><th>دفعات</th><th>المتبقي</th><th>التاريخ</th></tr>
+                      </thead>
+                      <tbody>
+                        {subs.map(sub => {
+                          const isD = !!(sub as any).diploma;
+                          const active = selSub?.id === sub.id && selSub?.id !== 'EXTRA';
+                          const subInsts = insts.filter(i => String(i.subscriptionId) === String(sub.id));
+                          const unpaidCount = subInsts.filter(i => i.status === 'PENDING' || i.status === 'OVERDUE').length;
+                          return (
                           <tr key={String(sub.id)} onClick={() => selectSub(sub)} style={{ cursor: 'pointer' }} className={active ? 'active' : ''}>
                             <td><span className={`badge ${isD ? 'primary' : 'success'}`} style={{ fontSize: '0.55rem' }}>{isD ? 'دبلوم' : 'دورة'}</span></td>
                             <td style={{ fontWeight: active ? 600 : 400 }}>{subName(sub)}</td>
                             <td style={{ direction: 'ltr', fontFamily: 'monospace' }}>{(sub as any).totalCost || (sub as any).baseFee || 0}</td>
                             <td>{(sub as any).installmentsCount || 0}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span style={{ color: unpaidCount > 0 ? 'var(--danger)' : 'var(--success)', fontSize: '0.7rem', fontWeight: 600 }}>
+                                {unpaidCount > 0 ? unpaidCount : '✓'}
+                              </span>
+                            </td>
                             <td style={{ fontSize: '0.68rem' }}>{new Date(sub.date).toLocaleDateString('ar-JO')}</td>
                           </tr>
                         );
