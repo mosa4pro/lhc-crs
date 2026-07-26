@@ -481,4 +481,200 @@ router.delete('/course/:id', authMiddleware, requirePermission('subscriptions.ed
   } catch { return res.status(400).json({ error: 'فشل إلغاء الاشتراك' }); }
 });
 
+// ==================== SUPERVISOR → REGISTRAR WORKFLOW ====================
+
+// Supervisor initiates a subscription (basic info only)
+router.post('/supervisor-init', authMiddleware, requirePermission('subscriptions.add'), async (req, res) => {
+  try {
+    const { studentId, programId, programType, studyType, entityId } = req.body;
+    if (!studentId || !programId || !programType) {
+      return res.status(400).json({ error: 'الطالب والبرنامج والنوع مطلوبون' });
+    }
+    if (programType !== 'DIPLOMA' && programType !== 'COURSE') {
+      return res.status(400).json({ error: 'نوع البرنامج يجب أن يكون DIPLOMA أو COURSE' });
+    }
+
+    if (programType === 'DIPLOMA') {
+      const existing = await prisma.diplomaSubscription.findFirst({
+        where: { studentId, diplomaId: programId, status: { in: ['ACTIVE', 'PENDING'] } }
+      });
+      if (existing) return res.status(400).json({ error: 'الطالب مسجل بالفعل في هذا الدبلوم' });
+      const sub = await prisma.diplomaSubscription.create({
+        data: {
+          studentId, diplomaId: programId,
+          entityId: entityId ? parseInt(entityId) : null,
+          studyType: studyType || 'FACE_TO_FACE',
+          workflowStatus: 'PENDING_REGISTRAR',
+          status: 'PENDING',
+        },
+        include: { student: true, diploma: true }
+      });
+      return res.status(201).json(sub);
+    } else {
+      const existing = await prisma.courseSubscription.findFirst({
+        where: { studentId, courseId: programId, status: 'ACTIVE' }
+      });
+      if (existing) return res.status(400).json({ error: 'الطالب مسجل بالفعل في هذه الدورة' });
+      const sub = await prisma.courseSubscription.create({
+        data: {
+          studentId, courseId: programId,
+          entityId: entityId ? parseInt(entityId) : null,
+          studyType: studyType || 'FACE_TO_FACE',
+          workflowStatus: 'PENDING_REGISTRAR',
+          status: 'PENDING',
+        },
+        include: { student: true, course: true }
+      });
+      return res.status(201).json(sub);
+    }
+  } catch (err: any) {
+    console.error(err);
+    return res.status(400).json({ error: err.message || 'فشل بدء الاشتراك' });
+  }
+});
+
+// Get pending subscriptions (for registrar to complete)
+router.get('/pending', authMiddleware, requirePermission('subscriptions.view'), async (req, res) => {
+  try {
+    const [dipSubs, crsSubs] = await Promise.all([
+      prisma.diplomaSubscription.findMany({
+        where: { workflowStatus: 'PENDING_REGISTRAR' },
+        include: { student: { select: { id: true, fullNameAr: true, phones: true } }, diploma: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.courseSubscription.findMany({
+        where: { workflowStatus: 'PENDING_REGISTRAR' },
+        include: { student: { select: { id: true, fullNameAr: true, phones: true } }, course: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' }
+      }),
+    ]);
+    const pending = [
+      ...dipSubs.map(s => ({ ...s, programType: 'DIPLOMA', programName: (s as any).diploma?.name, programId: (s as any).diplomaId })),
+      ...crsSubs.map(s => ({ ...s, programType: 'COURSE', programName: (s as any).course?.name, programId: (s as any).courseId })),
+    ];
+    return res.json(pending);
+  } catch {
+    return res.status(500).json({ error: 'خطأ في جلب الاشتراكات المعلقة' });
+  }
+});
+
+// Registrar completes a diploma subscription
+router.put('/diploma/:id/complete', authMiddleware, requirePermission('subscriptions.add'), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id as string);
+    const sub = await prisma.diplomaSubscription.findUnique({ where: { id } });
+    if (!sub) return res.status(404).json({ error: 'الاشتراك غير موجود' });
+    if (sub.workflowStatus !== 'PENDING_REGISTRAR') return res.status(400).json({ error: 'الاشتراك不是在 هذه المرحلة' });
+
+    const {
+      baseFee, hasTransport, transportFee, hasSupplies, suppliesFee,
+      discountType, discountValue, totalCost, paymentType, installmentsCount, notes,
+      minPaymentException,
+      firstInstallmentAmount, firstInstallmentPaid,
+      firstPaymentMethod, firstPaymentRef, firstPaymentDest,
+      firstPaymentSubMethod, firstPaymentWalletRef, firstPaymentBank,
+      firstPaymentCheckNum, firstPaymentHawalaNum,
+      installmentDates, installmentAmounts
+    } = req.body;
+
+    const updated = await prisma.diplomaSubscription.update({
+      where: { id },
+      data: {
+        baseFee: parseFloat(baseFee) || 0, hasTransport: !!hasTransport, transportFee: parseFloat(transportFee) || 0,
+        hasSupplies: !!hasSupplies, suppliesFee: parseFloat(suppliesFee) || 0,
+        discountType: discountType || 'NONE', discountValue: parseFloat(discountValue) || 0,
+        totalCost: parseFloat(totalCost) || 0, minPaymentException: !!minPaymentException,
+        paymentType: paymentType || 'INSTALLMENTS', installmentsCount: parseInt(installmentsCount) || 1,
+        notes: notes || null, status: 'ACTIVE', workflowStatus: 'COMPLETED',
+      }
+    });
+
+    const count = parseInt(installmentsCount) || 1;
+    const total = parseFloat(totalCost) || 0;
+    const firstAmt = firstInstallmentAmount ? parseFloat(firstInstallmentAmount) : total;
+    if (count >= 1 && total > 0) {
+      const instDates: string[] = Array.isArray(installmentDates) ? installmentDates : [];
+      const instAmounts: number[] = Array.isArray(installmentAmounts) ? installmentAmounts.map(Number) : [];
+      const amounts = instAmounts.length === count ? instAmounts : undefined;
+      const createdInsts = await generateInstallments(sub.studentId, String(sub.id), 'DIPLOMA', total, count, new Date(), firstAmt, instDates, amounts);
+      if (firstInstallmentPaid && createdInsts.length > 0) {
+        await createFirstInstallmentPayment(sub.studentId, String(sub.id), 'DIPLOMA',
+          createdInsts[0].id, createdInsts[0].amount, firstPaymentMethod || 'CASH', firstPaymentRef || '',
+          firstPaymentDest, firstPaymentSubMethod, firstPaymentWalletRef, firstPaymentBank, firstPaymentCheckNum, firstPaymentHawalaNum);
+        await prisma.installment.update({ where: { id: createdInsts[0].id }, data: { paidAmount: createdInsts[0].amount, remainingAmount: 0, status: 'PAID', paymentDate: new Date(), paymentMethod: firstPaymentMethod || 'CASH' } });
+      }
+    }
+
+    await awardPoints(sub.studentId);
+    return res.json(updated);
+  } catch (err: any) {
+    console.error(err);
+    return res.status(400).json({ error: err.message || 'فشل إكمال الاشتراك' });
+  }
+});
+
+// Registrar completes a course subscription
+router.put('/course/:id/complete', authMiddleware, requirePermission('subscriptions.add'), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id as string);
+    const sub = await prisma.courseSubscription.findUnique({ where: { id } });
+    if (!sub) return res.status(404).json({ error: 'الاشتراك غير موجود' });
+    if (sub.workflowStatus !== 'PENDING_REGISTRAR') return res.status(400).json({ error: 'الاشتراك ليس في هذه المرحلة' });
+
+    const {
+      baseFee, hasTransport, transportFee, hasSupplies, suppliesFee,
+      discountType, discountValue, totalCost, paymentType, installmentsCount, notes,
+      minPaymentException,
+      firstInstallmentAmount, firstInstallmentPaid,
+      firstPaymentMethod, firstPaymentRef, firstPaymentDest,
+      firstPaymentSubMethod, firstPaymentWalletRef, firstPaymentBank,
+      firstPaymentCheckNum, firstPaymentHawalaNum,
+      installmentDates, installmentAmounts
+    } = req.body;
+
+    const updated = await prisma.courseSubscription.update({
+      where: { id },
+      data: {
+        baseFee: parseFloat(baseFee) || 0, hasTransport: !!hasTransport, transportFee: parseFloat(transportFee) || 0,
+        hasSupplies: !!hasSupplies, suppliesFee: parseFloat(suppliesFee) || 0,
+        discountType: discountType || 'NONE', discountValue: parseFloat(discountValue) || 0,
+        totalCost: parseFloat(totalCost) || 0, minPaymentException: !!minPaymentException,
+        paymentType: paymentType || 'INSTALLMENTS', installmentsCount: parseInt(installmentsCount) || 1,
+        notes: notes || null, status: 'ACTIVE', workflowStatus: 'COMPLETED',
+      }
+    });
+
+    const count = parseInt(installmentsCount) || 1;
+    const total = parseFloat(totalCost) || 0;
+    const firstAmt = firstInstallmentAmount ? parseFloat(firstInstallmentAmount) : total;
+    if (count >= 1 && total > 0) {
+      const instDates: string[] = Array.isArray(installmentDates) ? installmentDates : [];
+      const instAmounts: number[] = Array.isArray(installmentAmounts) ? installmentAmounts.map(Number) : [];
+      const amounts = instAmounts.length === count ? instAmounts : undefined;
+      const createdInsts = await generateInstallments(sub.studentId, String(sub.id), 'COURSE', total, count, new Date(), firstAmt, instDates, amounts);
+      if (firstInstallmentPaid && createdInsts.length > 0) {
+        await createFirstInstallmentPayment(sub.studentId, String(sub.id), 'COURSE',
+          createdInsts[0].id, createdInsts[0].amount, firstPaymentMethod || 'CASH', firstPaymentRef || '',
+          firstPaymentDest, firstPaymentSubMethod, firstPaymentWalletRef, firstPaymentBank, firstPaymentCheckNum, firstPaymentHawalaNum);
+        await prisma.installment.update({ where: { id: createdInsts[0].id }, data: { paidAmount: createdInsts[0].amount, remainingAmount: 0, status: 'PAID', paymentDate: new Date(), paymentMethod: firstPaymentMethod || 'CASH' } });
+      }
+    }
+
+    // Auto-enroll in first section
+    const minOk = minPaymentException ? { ok: true } : await getMinPaymentCheck(sub.studentId, sub.courseId, 'COURSE');
+    if (sub.courseId && minOk.ok) {
+      const section = await prisma.section.findFirst({ where: { courseId: sub.courseId, status: 'OPEN' } });
+      if (section) {
+        await prisma.studentSection.upsert({ where: { studentId_sectionId: { studentId: sub.studentId, sectionId: section.id } }, update: {}, create: { studentId: sub.studentId, sectionId: section.id } });
+      }
+    }
+
+    await awardPoints(sub.studentId);
+    return res.json(updated);
+  } catch (err: any) {
+    console.error(err);
+    return res.status(400).json({ error: err.message || 'فشل إكمال الاشتراك' });
+  }
+});
+
 export default router;

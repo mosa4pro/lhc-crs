@@ -433,6 +433,9 @@ model DiplomaSubscription {
   entityId  Int?
   studyType String  @default("FACE_TO_FACE") // FACE_TO_FACE | HYBRID | ONLINE
 
+  // Workflow: for supervisor → registrar chain
+  workflowStatus String @default("COMPLETED") // COMPLETED | PENDING_REGISTRAR
+
   // Financials
   baseFee       Float   @default(0)
   hasTransport  Boolean @default(false)
@@ -471,6 +474,9 @@ model CourseSubscription {
   courseId  String
   entityId  Int?
   studyType String  @default("FACE_TO_FACE")
+
+  // Workflow: for supervisor → registrar chain
+  workflowStatus String @default("COMPLETED") // COMPLETED | PENDING_REGISTRAR
 
   // Financials
   baseFee       Float   @default(0)
