@@ -4,6 +4,7 @@ import { useApi } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { DeepSearchModal } from '../components/DeepSearchModal';
 import { DIPLOMA_CATEGORIES } from '../utils/constants';
+import { formatDate } from '../utils/dateFormat';
 
 
 const dayLabels: Record<string, string> = { SUN: 'الأحد', MON: 'الاثنين', TUE: 'الثلاثاء', WED: 'الأربعاء', THU: 'الخميس', FRI: 'الجمعة', SAT: 'السبت' };
@@ -814,9 +815,7 @@ export const AddToSectionPage = () => {
                           display: 'flex', alignItems: 'center', gap: 6,
                         }}>
                           <Clock size={12} />
-                          {new Date(log.transferredAt).toLocaleDateString('ar-SA', {
-                            year: 'numeric', month: 'long', day: 'numeric',
-                          })}
+                          {formatDate(log.transferredAt, true)}
                         </div>
                         <div style={{ padding: '12px 14px', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                           {/* From section */}
@@ -1004,8 +1003,8 @@ export const AddToSectionPage = () => {
                               <td style={{ fontSize: '0.82rem' }}>{formatSchedule(sec)}</td>
                               <td style={{ fontSize: '0.85rem' }}>{sec.instructorName || '—'}</td>
                               <td style={{ fontSize: '0.85rem' }}>{sec.roomName || '—'}</td>
-                              <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{sec.enrollDate ? new Date(sec.enrollDate).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</td>
-                              <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{sec.endDate && new Date(sec.endDate) <= new Date() ? new Date(sec.endDate).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' }) : 'إلى الآن'}</td>
+                              <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{sec.enrollDate ? formatDate(sec.enrollDate) : '—'}</td>
+                              <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{sec.endDate && new Date(sec.endDate) <= new Date() ? formatDate(sec.endDate) : 'إلى الآن'}</td>
                               <td>
                                 {targets.length > 0 ? (
                                   <button className="glass-btn sm" onClick={() => { setTrModalSection(sec); setTrTargetId(null); }}
@@ -1087,7 +1086,7 @@ export const AddToSectionPage = () => {
                             <span>📚 شعبة: {sec.name || '-'}</span>
                             <span>👨‍🏫 {sec.instructorName}</span>
                             <span>🏠 {sec.roomName}</span>
-                            <span>📅 {sec.startDate ? `${new Date(sec.startDate).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' })}` : '-'} → {sec.endDate && new Date(sec.endDate) <= new Date() ? new Date(sec.endDate).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' }) : 'الآن'}</span>
+                            <span>📅 {sec.startDate ? `${formatDate(sec.startDate)}` : '-'} → {sec.endDate && new Date(sec.endDate) <= new Date() ? formatDate(sec.endDate) : 'الآن'}</span>
                             <span>📅 {sec.days ? formatSchedule(sec) : '-'}</span>
                             <span>👥 {sec.enrolledCount}/{sec.capacity}</span>
                           </div>

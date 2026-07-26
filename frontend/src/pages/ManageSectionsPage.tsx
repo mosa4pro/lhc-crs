@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { formatDate } from '../utils/dateFormat';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const API = API_BASE + '/api';
@@ -371,10 +372,10 @@ export const ManageSectionsPage = () => {
                   </div>
                 </td>
                 <td style={{ fontSize: '0.82rem' }}>
-                  {s.startDate ? new Date(s.startDate).toLocaleDateString('ar') : '—'}
+                  {formatDate(s.startDate)}
                   <br/>
                   <span style={{ color: 'var(--text-muted)' }}>إلى </span>
-                  {s.endDate ? new Date(s.endDate).toLocaleDateString('ar') : '—'}
+                  {formatDate(s.endDate)}
                 </td>
                 <td>
                   <button

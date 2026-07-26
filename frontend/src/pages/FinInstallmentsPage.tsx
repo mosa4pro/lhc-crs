@@ -7,6 +7,7 @@ import {
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { DeepSearchModal } from '../components/DeepSearchModal';
+import { formatDate } from '../utils/dateFormat';
 
 interface Sub { id: number | string; studentId: string; baseFee: number; totalCost: number; paymentType: string; installmentsCount: number; date: string; status: string; notes?: string; diploma?: { id: string; name: string }; course?: { id: string; name: string }; entity?: { id: number; name: string }; }
 interface Inst { id: number; studentId: string; subscriptionId: string; subscriptionType: string; installmentNumber: number; totalInstallments: number; dueDate: string; amount: number; paidAmount: number; remainingAmount: number; status: string; paymentDate?: string; paymentMethod?: string; referenceNumber?: string; notes?: string; paymentWallet?: string; paymentBank?: string; senderInfo?: string; }
@@ -316,7 +317,7 @@ h1{text-align:center;font-size:22px;margin-bottom:5px} h2{text-align:center;font
 <button onclick="window.print()" style="padding:10px 20px;margin-bottom:20px;cursor:pointer">طباعة</button>
 <h1>سند قبض</h1><h2>مركز LHC للتدريب</h2>
 <div class="receipt"><div class="row"><span>رقم السند</span><span>${tx.receiptNumber}</span></div>
-<div class="row"><span>التاريخ</span><span>${new Date(tx.date).toLocaleDateString('ar-JO')}</span></div>
+<div class="row"><span>التاريخ</span><span>${formatDate(tx.date)}</span></div>
 ${tx.student ? `<div class="row"><span>الطالب</span><span>${tx.student.fullNameAr}</span></div>` : ''}
 <div class="row"><span>المبلغ</span><span>${tx.amount.toFixed(2)} د.أ</span></div>
 <div class="row"><span>طريقة الدفع</span><span>${PML[tx.paymentMethod] || tx.paymentMethod}</span></div>
@@ -586,8 +587,8 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                     <div><span className="text-muted">المبلغ:</span> <strong>{selInst.amount.toFixed(2)}</strong></div>
                     <div><span className="text-muted">المدفوع:</span> <strong style={{ color: 'var(--success)' }}>{selInst.paidAmount.toFixed(2)}</strong></div>
                     <div><span className="text-muted">المتبقي:</span> <strong style={{ color: 'var(--danger)' }}>{selInst.remainingAmount.toFixed(2)}</strong></div>
-                    <div><span className="text-muted">الاستحقاق:</span> <strong>{new Date(selInst.dueDate).toLocaleDateString('ar-JO')}</strong></div>
-                    {selInst.paymentDate && <div><span className="text-muted">تاريخ الدفع:</span> <strong>{new Date(selInst.paymentDate).toLocaleDateString('ar-JO')}</strong></div>}
+                    <div><span className="text-muted">الاستحقاق:</span> <strong>{formatDate(selInst.dueDate)}</strong></div>
+                    {selInst.paymentDate && <div><span className="text-muted">تاريخ الدفع:</span> <strong>{formatDate(selInst.paymentDate)}</strong></div>}
                     {selInst.paymentMethod && (
                       <div style={{ gridColumn: '1 / -1' }}>
                         <span className="text-muted">طريقة الدفع:</span>
@@ -895,7 +896,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                                 {unpaidCount > 0 ? unpaidCount : '✓'}
                               </span>
                             </td>
-                            <td style={{ fontSize: '0.68rem' }}>{new Date(sub.date).toLocaleDateString('ar-JO')}</td>
+                            <td style={{ fontSize: '0.68rem' }}>{formatDate(sub.date)}</td>
                           </tr>
                         );
                       })}
@@ -1005,7 +1006,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                               <td style={{ direction: 'ltr', fontFamily: 'monospace' }}>{inst.amount.toFixed(2)}</td>
                               <td style={{ direction: 'ltr', fontFamily: 'monospace', color: inst.paidAmount > 0 ? 'var(--success)' : 'var(--text-muted)' }}>{inst.paidAmount > 0 ? inst.paidAmount.toFixed(2) : '—'}</td>
                               <td style={{ direction: 'ltr', fontFamily: 'monospace', color: inst.remainingAmount > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{inst.remainingAmount > 0 ? inst.remainingAmount.toFixed(2) : '—'}</td>
-                              <td style={{ fontSize: '0.65rem' }}>{new Date(inst.dueDate).toLocaleDateString('ar-JO')}</td>
+                              <td style={{ fontSize: '0.65rem' }}>{formatDate(inst.dueDate)}</td>
                               <td><span className={`badge ${st.cls}`} style={{ fontSize: '0.52rem' }}>{st.label}</span></td>
                             </tr>
                           );
@@ -1035,7 +1036,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                             {tx.type === 'RECEIPT' ? 'دفعة' : tx.type === 'REFUND' ? 'مرتجع' : 'تعديل'}
                             <span className={`badge ${tx.status === 'COMPLETED' ? 'success' : 'secondary'}`} style={{ fontSize: '0.48rem', marginRight: 4, padding: '1px 6px' }}>{tx.status === 'COMPLETED' ? 'مكتمل' : 'ملغي'}</span>
                           </span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>{new Date(tx.date).toLocaleDateString('ar-JO')}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>{formatDate(tx.date)}</span>
                         </div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: '0.68rem' }}>
                           <span><strong>{tx.amount.toFixed(2)}</strong> د.أ</span>
