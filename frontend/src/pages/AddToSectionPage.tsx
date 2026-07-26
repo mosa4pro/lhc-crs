@@ -22,6 +22,7 @@ export const AddToSectionPage = () => {
   const [selectedSection, setSelectedSection] = useState('');
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const [statusFilter, setStatusFilter] = useState('');
   const [entityFilter, setEntityFilter] = useState('');
@@ -759,11 +760,12 @@ export const AddToSectionPage = () => {
 
               {/* Current sections */}
               <div className="glass-panel" style={{ marginBottom: 16, padding: '18px 22px' }}>
-                <h3 style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setCollapsed({ ...collapsed, currSections: !collapsed.currSections })}>
                   <BookOpen size={18} color="var(--primary)" /> الشعب المسجل فيها حالياً
                   <span className="badge teal" style={{ fontSize: '0.72rem' }}>{studentSections.length}</span>
+                  <span style={{ marginRight: 'auto', fontSize: '0.72rem', opacity: 0.4 }}>{collapsed.currSections ? 'إظهار' : 'إخفاء'}</span>
                 </h3>
-                {studentSections.length > 0 ? (
+                {!collapsed.currSections && (studentSections.length > 0 ? (
                   <div className="glass-table-container" style={{ maxHeight: 300, overflowY: 'auto' }}>
                     <table className="glass-table">
                       <thead><tr><th>الدورة</th><th>الجدول</th><th>المدرب</th><th>القاعة</th></tr></thead>
@@ -786,7 +788,7 @@ export const AddToSectionPage = () => {
                   </div>
                   ) : (
                   <p style={{ textAlign: 'center', padding: 20, opacity: 0.5 }}>غير مسجل في أي شعبة</p>
-                )}
+                ))}
               </div>
 
               {/* Transfer log */}
@@ -854,11 +856,12 @@ export const AddToSectionPage = () => {
 
               {/* Available sections */}
               <div className="glass-panel" style={{ marginBottom: 16, padding: '18px 22px' }}>
-                <h3 style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Clock size={18} color="var(--success)" /> الشعب المتاحة للتسجيل
-                  <span className="badge primary" style={{ fontSize: '0.72rem' }}>{availableSections.length}</span>
-                </h3>
-                {availableSections.length > 0 ? (
+                  <h3 style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setCollapsed({ ...collapsed, availSections: !collapsed.availSections })}>
+                    <Clock size={18} color="var(--success)" /> الشعب المتاحة للتسجيل
+                    <span className="badge primary" style={{ fontSize: '0.72rem' }}>{availableSections.length}</span>
+                    <span style={{ marginRight: 'auto', fontSize: '0.72rem', opacity: 0.4 }}>{collapsed.availSections ? 'إظهار' : 'إخفاء'}</span>
+                  </h3>
+                  {!collapsed.availSections && (availableSections.length > 0 ? (
                   <div className="glass-table-container" style={{ maxHeight: 400, overflowY: 'auto' }}>
                     <table className="glass-table">
                       <thead><tr>
@@ -900,7 +903,7 @@ export const AddToSectionPage = () => {
                   </div>
                 ) : (
                   <p style={{ textAlign: 'center', padding: 20, opacity: 0.5 }}>لا توجد شعب متاحة (يجب تسجيل الطالب في دورة أولاً)</p>
-                )}
+                ))}
               </div>
             </>
           )}
