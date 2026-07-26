@@ -259,23 +259,24 @@ router.post('/:id/students', authMiddleware, requirePermission('sections.assign'
       include: { section: { include: { course: true } } }
     }).catch(e => { console.error('step3 existingSections', e?.message, e?.code); throw e; });
     for (const es of existingSections) {
-      if (sectionsOverlap(section, es.section)) {
-        const courseName = es.section.course?.name || '';
-        const esDays = es.section.perDaySchedule && es.section.scheduleDetails
-          ? safeParseJSON(es.section.scheduleDetails, []).map((s: any) => s.day)
-          : safeParseJSON(es.section.days, []);
-        const esTime = es.section.perDaySchedule && es.section.scheduleDetails
-          ? safeParseJSON(es.section.scheduleDetails, []).map((s: any) => `${s.startTime}-${s.endTime}`).join(', ')
-          : `${es.section.startTime}-${es.section.endTime}`;
+      const sec = es.section as any;
+      if (sectionsOverlap(section, sec)) {
+        const courseName = sec.course?.name || '';
+        const esDays = sec.perDaySchedule && sec.scheduleDetails
+          ? safeParseJSON(sec.scheduleDetails, []).map((s: any) => s.day)
+          : safeParseJSON(sec.days, []);
+        const esTime = sec.perDaySchedule && sec.scheduleDetails
+          ? safeParseJSON(sec.scheduleDetails, []).map((s: any) => `${s.startTime}-${s.endTime}`).join(', ')
+          : `${sec.startTime}-${sec.endTime}`;
         return res.status(409).json({
-          error: `تعارض في الموعد: الطالب مسجل في شعبة "${es.section.name || es.section.id}" لدورة "${courseName}" (${Array.isArray(esDays) ? esDays.join(' - ') : esDays} ${esTime})`,
+          error: `تعارض في الموعد: الطالب مسجل في شعبة "${sec.name || sec.id}" لدورة "${courseName}" (${Array.isArray(esDays) ? esDays.join(' - ') : esDays} ${esTime})`,
           conflict: {
-            sectionId: es.section.id,
-            sectionName: es.section.name,
+            sectionId: sec.id,
+            sectionName: sec.name,
             courseName,
             days: esDays,
-            startTime: es.section.startTime,
-            endTime: es.section.endTime,
+            startTime: sec.startTime,
+            endTime: sec.endTime,
           }
         });
       }
