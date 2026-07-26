@@ -4,6 +4,34 @@ import { authMiddleware, requirePermission } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Check if two sections have overlapping schedules (accounts for per-day schedule)
+const sectionsOverlap = (a: any, b: any) => {
+  const aPerDay = a.perDaySchedule && a.scheduleDetails;
+  const bPerDay = b.perDaySchedule && b.scheduleDetails;
+  if (!aPerDay && !bPerDay) {
+    return daysOverlap(a.days, b.days) && checkOverlap(a.startTime, b.startTime, a.endTime, b.endTime);
+  }
+  // Use schedule details
+  const aSlots = aPerDay ? safeParseJSON(a.scheduleDetails, []) : [{ day: '', startTime: a.startTime, endTime: a.endTime }];
+  const bSlots = bPerDay ? safeParseJSON(b.scheduleDetails, []) : [{ day: '', startTime: b.startTime, endTime: b.endTime }];
+  const aDays = aSlots.map((s: any) => s.day);
+  const bDays = bSlots.map((s: any) => s.day);
+  const commonDays = aDays.filter((d: string) => bDays.includes(d));
+  if (commonDays.length === 0) return false;
+  for (const day of commonDays) {
+    const aSlot = aSlots.find((s: any) => s.day === day) || aSlots[0];
+    const bSlot = bSlots.find((s: any) => s.day === day) || bSlots[0];
+    if (checkOverlap(aSlot.startTime, aSlot.endTime, bSlot.startTime, bSlot.endTime)) return true;
+  }
+  return false;
+};
+
+// Safe JSON parse helper
+const safeParseJSON = (val: any, fallback: any) => {
+  if (!val) return fallback;
+  try { return JSON.parse(val); } catch { return fallback; }
+};
+
 router.get('/', authMiddleware, requirePermission('sections.manage'), async (req, res) => {
   try {
     const { status, entityId, categoryId, courseId, diplomaId } = req.query;
@@ -98,12 +126,14 @@ router.get('/:id/conflicts', authMiddleware, requirePermission('sections.manage'
 });
 
 router.post('/', authMiddleware, requirePermission('sections.manage'), async (req, res) => {
-  const { courseId, roomId, instructorId, days, startTime, endTime, startDate, endDate, capacity, name, maxAbsences } = req.body;
-  if (!courseId || !roomId || !instructorId || !days || !startTime || !endTime) {
-    return res.status(400).json({ error: 'جميع الحقول الإجبارية مطلوبة' });
+  const { courseId, roomId, instructorId, days, startTime, endTime, startDate, endDate, capacity, name, maxAbsences, perDaySchedule, scheduleDetails } = req.body;
+  if (!courseId || !roomId || !instructorId) {
+    return res.status(400).json({ error: 'الدورة والقاعة والمدرّس إجبارية' });
+  }
+  if (!perDaySchedule && (!days || !startTime || !endTime)) {
+    return res.status(400).json({ error: 'الأيام والوقت إجباريان' });
   }
   try {
-    // Get course to auto-generate name
     const course = await prisma.course.findUnique({ where: { id: courseId } });
     if (!course) return res.status(404).json({ error: 'الدورة غير موجودة' });
 
@@ -131,24 +161,28 @@ router.post('/', authMiddleware, requirePermission('sections.manage'), async (re
       }
     }
 
-    // Room conflict check
+    // Room conflict check — use effective schedule
     const roomSections = await prisma.section.findMany({ where: { roomId: parseInt(roomId), status: 'OPEN' } });
     for (const rs of roomSections) {
-      if (daysOverlap(days, rs.days) && checkOverlap(startTime, endTime, rs.startTime, rs.endTime)) {
+      if (sectionsOverlap({ days, startTime, endTime, perDaySchedule, scheduleDetails }, rs)) {
         return res.status(409).json({ error: `تعارض في القاعة مع الشعبة: ${rs.name || rs.id}` });
       }
     }
     // Instructor conflict check
     const instSections = await prisma.section.findMany({ where: { instructorId: parseInt(instructorId), status: 'OPEN' } });
     for (const is of instSections) {
-      if (daysOverlap(days, is.days) && checkOverlap(startTime, endTime, is.startTime, is.endTime)) {
+      if (sectionsOverlap({ days, startTime, endTime, perDaySchedule, scheduleDetails }, is)) {
         return res.status(409).json({ error: `تعارض في جدول المدرّس مع الشعبة: ${is.name || is.id}` });
       }
     }
     const section = await prisma.section.create({
       data: {
         name: sectionName, courseId, roomId: parseInt(roomId), instructorId: parseInt(instructorId),
-        days, startTime, endTime,
+        days: perDaySchedule ? '[]' : days,
+        startTime: perDaySchedule ? '' : startTime,
+        endTime: perDaySchedule ? '' : endTime,
+        perDaySchedule: !!perDaySchedule,
+        scheduleDetails: perDaySchedule ? scheduleDetails : null,
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
         capacity: parseInt(capacity) || 30,
@@ -225,15 +259,21 @@ router.post('/:id/students', authMiddleware, requirePermission('sections.assign'
       include: { section: { include: { course: true } } }
     }).catch(e => { console.error('step3 existingSections', e?.message, e?.code); throw e; });
     for (const es of existingSections) {
-      if (daysOverlap(section.days, es.section.days) && checkOverlap(section.startTime, section.endTime, es.section.startTime, es.section.endTime)) {
+      if (sectionsOverlap(section, es.section)) {
         const courseName = es.section.course?.name || '';
+        const esDays = es.section.perDaySchedule && es.section.scheduleDetails
+          ? safeParseJSON(es.section.scheduleDetails, []).map((s: any) => s.day)
+          : safeParseJSON(es.section.days, []);
+        const esTime = es.section.perDaySchedule && es.section.scheduleDetails
+          ? safeParseJSON(es.section.scheduleDetails, []).map((s: any) => `${s.startTime}-${s.endTime}`).join(', ')
+          : `${es.section.startTime}-${es.section.endTime}`;
         return res.status(409).json({
-          error: `تعارض في الموعد: الطالب مسجل في شعبة "${es.section.name || es.section.id}" لدورة "${courseName}" (${es.section.days ? JSON.parse(es.section.days).join(' - ') : ''} ${es.section.startTime}-${es.section.endTime})`,
+          error: `تعارض في الموعد: الطالب مسجل في شعبة "${es.section.name || es.section.id}" لدورة "${courseName}" (${Array.isArray(esDays) ? esDays.join(' - ') : esDays} ${esTime})`,
           conflict: {
             sectionId: es.section.id,
             sectionName: es.section.name,
             courseName,
-            days: JSON.parse(es.section.days || '[]'),
+            days: esDays,
             startTime: es.section.startTime,
             endTime: es.section.endTime,
           }

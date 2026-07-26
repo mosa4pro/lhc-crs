@@ -189,6 +189,7 @@ model Room {
   address  String?
   building  String?
   floor     String?
+  learningType String @default("INSIDE_CENTER") // INSIDE_CENTER | VIRTUAL_ROOM | ONLINE | EXTERNAL_ENTITY
   hasProjector Boolean @default(false)
   hasAC        Boolean @default(false)
   notes     String?
@@ -331,9 +332,11 @@ model Section {
   courseId     String
   roomId       Int
   instructorId Int
-  days         String    // JSON: ["SAT","MON","WED"]
-  startTime    String    // "17:00"
-  endTime      String    // "19:00"
+  days         String    // JSON: ["SAT","MON","WED"] — used when perDaySchedule is false
+  startTime    String    // "17:00" — used when perDaySchedule is false
+  endTime      String    // "19:00" — used when perDaySchedule is false
+  perDaySchedule Boolean @default(false) // true = use scheduleDetails instead of days/startTime/endTime
+  scheduleDetails String? // JSON: [{"day":"SUN","startTime":"16:00","endTime":"18:00"},...]
   startDate    DateTime?
   endDate      DateTime?
   capacity     Int       @default(30)
