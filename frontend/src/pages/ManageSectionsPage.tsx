@@ -27,6 +27,8 @@ interface Section {
   maxAbsences: number;
   status: string;
   students?: any[];
+  perDaySchedule?: boolean;
+  scheduleDetails?: any;
 }
 
 const dayLabels: Record<string, string> = {
@@ -37,6 +39,20 @@ const dayLabels: Record<string, string> = {
 const formatDays = (daysStr: string) => {
   try { return (JSON.parse(daysStr) as string[]).map(d => dayLabels[d]).join('، '); }
   catch { return daysStr; }
+};
+
+const formatSchedule = (sec: Section) => {
+  if (sec.perDaySchedule && sec.scheduleDetails) {
+    const details = typeof sec.scheduleDetails === 'string' ? safeJSON(sec.scheduleDetails, []) : sec.scheduleDetails;
+    if (Array.isArray(details) && details.length > 0) {
+      return details.map((s: any) => `${dayLabels[s.day] || s.day} ${s.startTime}-${s.endTime}`).join(' | ');
+    }
+  }
+  return `${formatDays(sec.days)} | ${sec.startTime} - ${sec.endTime}`;
+};
+
+const safeJSON = (str: string, fallback: any) => {
+  try { return JSON.parse(str); } catch { return fallback; }
 };
 
 export const ManageSectionsPage = () => {
@@ -72,7 +88,9 @@ export const ManageSectionsPage = () => {
   const [formData, setFormData] = useState({
     courseId: '', roomId: '', instructorId: '',
     days: [] as string[],
-    startTime: '', endTime: '', startDate: '', endDate: '', capacity: 30, maxAbsences: 3
+    startTime: '', endTime: '', startDate: '', endDate: '', capacity: 30, maxAbsences: 3,
+    perDaySchedule: false,
+    scheduleDetails: [] as { day: string; startTime: string; endTime: string }[]
   });
 
   /* ─────────────── Fetch ─────────────── */
@@ -110,7 +128,7 @@ export const ManageSectionsPage = () => {
   };
 
   const resetForm = () => {
-    setFormData({ courseId: '', roomId: '', instructorId: '', days: [], startTime: '', endTime: '', startDate: '', endDate: '', capacity: 30, maxAbsences: 3 });
+    setFormData({ courseId: '', roomId: '', instructorId: '', days: [], startTime: '', endTime: '', startDate: '', endDate: '', capacity: 30, maxAbsences: 3, perDaySchedule: false, scheduleDetails: [] });
   };
 
   const handleOpen = () => { resetForm(); setShowModal(true); };
@@ -118,14 +136,25 @@ export const ManageSectionsPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.courseId || !formData.roomId || !formData.instructorId || formData.days.length === 0 || !formData.startTime || !formData.endTime) {
+    if (!formData.courseId || !formData.roomId || !formData.instructorId) {
+      toast.error('يرجى تعبئة جميع الحقول الأساسية.');
+      return;
+    }
+    if (formData.perDaySchedule) {
+      if (formData.scheduleDetails.length === 0 || formData.scheduleDetails.some(s => !s.day || !s.startTime || !s.endTime)) {
+        toast.error('يرجى تعبئة الجدول الزمني لكل يوم.');
+        return;
+      }
+    } else if (formData.days.length === 0 || !formData.startTime || !formData.endTime) {
       toast.error('يرجى تعبئة جميع الحقول الأساسية وتحديد الأيام.');
       return;
     }
     setIsLoading(true);
 
     try {
-      const payload = { ...formData, days: JSON.stringify(formData.days) };
+      const payload = formData.perDaySchedule
+        ? { ...formData, days: JSON.stringify(formData.days), scheduleDetails: JSON.stringify(formData.scheduleDetails) }
+        : { ...formData, days: JSON.stringify(formData.days), scheduleDetails: null };
       const res = await fetch(`${API}/sections`, {
         method: 'POST', headers,
         body: JSON.stringify(payload)
@@ -338,10 +367,7 @@ export const ManageSectionsPage = () => {
                 </td>
                 <td>
                   <div style={{ fontSize: '0.83rem' }}>
-                    <Calendar size={12} className="inline-icon text-muted"/> {formatDays(s.days)}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--primary)', marginTop: 3 }}>
-                    <Clock size={12} className="inline-icon"/> {s.startTime} – {s.endTime}
+                    {formatSchedule(s)}
                   </div>
                 </td>
                 <td style={{ fontSize: '0.82rem' }}>
@@ -518,50 +544,118 @@ export const ManageSectionsPage = () => {
                 background: 'var(--card-bg)', padding: '18px 20px',
                 borderRadius: 14, border: '1px solid var(--glass-border)'
               }}>
-                <label className="form-label" style={{ marginBottom: 14 }}>
-                  أيام الانعقاد <span className="required-star">*</span>
-                </label>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-                  {Object.entries(dayLabels).map(([key, label]) => {
-                    const active = formData.days.includes(key);
-                    return (
-                      <button
-                        type="button" key={key}
-                        onClick={() => handleDayToggle(key)}
-                        style={{
-                          padding: '7px 18px', borderRadius: 20, fontSize: '0.85rem',
-                          cursor: 'pointer', border: '1.5px solid var(--primary)',
-                          background: active ? 'var(--primary)' : 'transparent',
-                          color: active ? '#fff' : 'var(--primary)',
-                          fontFamily: 'Cairo, sans-serif', fontWeight: 600,
-                          transition: 'all 0.2s ease',
-                          transform: active ? 'scale(1.05)' : 'scale(1)',
-                          boxShadow: active ? '0 3px 10px rgba(59,130,246,0.3)' : 'none',
-                        }}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    أيام الانعقاد <span className="required-star">*</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={formData.perDaySchedule}
+                      onChange={e => setFormData({ ...formData, perDaySchedule: e.target.checked })} />
+                    توقيت مختلف لكل يوم
+                  </label>
                 </div>
 
-                {/* Time */}
-                <div className="grid-2">
+                {formData.perDaySchedule ? (
                   <div>
-                    <label className="form-label" style={{ fontSize: '0.82rem' }}>
-                      وقت البداية <span className="required-star">*</span>
-                    </label>
-                    <input type="time" required className="glass-input" value={formData.startTime}
-                      onChange={e => setFormData({ ...formData, startTime: e.target.value })}/>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                      {Object.entries(dayLabels).map(([key, label]) => {
+                        const hasSlot = formData.scheduleDetails.some(s => s.day === key);
+                        return (
+                          <button
+                            type="button" key={key}
+                            onClick={() => {
+                              if (hasSlot) {
+                                setFormData({ ...formData, scheduleDetails: formData.scheduleDetails.filter(s => s.day !== key) });
+                              } else {
+                                setFormData({ ...formData, scheduleDetails: [...formData.scheduleDetails, { day: key, startTime: '', endTime: '' }] });
+                              }
+                            }}
+                            style={{
+                              padding: '7px 18px', borderRadius: 20, fontSize: '0.85rem',
+                              cursor: 'pointer', border: '1.5px solid var(--primary)',
+                              background: hasSlot ? 'var(--primary)' : 'transparent',
+                              color: hasSlot ? '#fff' : 'var(--primary)',
+                              fontFamily: 'Cairo, sans-serif', fontWeight: 600,
+                              transition: 'all 0.2s ease',
+                              transform: hasSlot ? 'scale(1.05)' : 'scale(1)',
+                              boxShadow: hasSlot ? '0 3px 10px rgba(59,130,246,0.3)' : 'none',
+                            }}
+                          >
+                            {label}
+                            <span style={{ marginRight: 4, fontSize: '0.7rem' }}>{hasSlot ? '×' : '+'}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {formData.scheduleDetails.filter(s => s.day).map((slot) => (
+                      <div key={slot.day} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, padding: '8px 12px', background: 'rgba(99,102,241,0.05)', borderRadius: 10 }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.85rem', minWidth: 70 }}>{dayLabels[slot.day]}</span>
+                        <input type="time" className="glass-input" style={{ flex: 1 }} value={slot.startTime}
+                          onChange={e => setFormData({
+                            ...formData,
+                            scheduleDetails: formData.scheduleDetails.map(s => s.day === slot.day ? { ...s, startTime: e.target.value } : s)
+                          })}
+                        />
+                        <span style={{ color: 'var(--text-muted)' }}>–</span>
+                        <input type="time" className="glass-input" style={{ flex: 1 }} value={slot.endTime}
+                          onChange={e => setFormData({
+                            ...formData,
+                            scheduleDetails: formData.scheduleDetails.map(s => s.day === slot.day ? { ...s, endTime: e.target.value } : s)
+                          })}
+                        />
+                      </div>
+                    ))}
+                    {formData.scheduleDetails.filter(s => s.day).length === 0 && (
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center', padding: 10 }}>
+                        اختر الأيام ثم حدد وقت البداية والنهاية لكل يوم
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="form-label" style={{ fontSize: '0.82rem' }}>
-                      وقت النهاية <span className="required-star">*</span>
-                    </label>
-                    <input type="time" required className="glass-input" value={formData.endTime}
-                      onChange={e => setFormData({ ...formData, endTime: e.target.value })}/>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+                      {Object.entries(dayLabels).map(([key, label]) => {
+                        const active = formData.days.includes(key);
+                        return (
+                          <button
+                            type="button" key={key}
+                            onClick={() => handleDayToggle(key)}
+                            style={{
+                              padding: '7px 18px', borderRadius: 20, fontSize: '0.85rem',
+                              cursor: 'pointer', border: '1.5px solid var(--primary)',
+                              background: active ? 'var(--primary)' : 'transparent',
+                              color: active ? '#fff' : 'var(--primary)',
+                              fontFamily: 'Cairo, sans-serif', fontWeight: 600,
+                              transition: 'all 0.2s ease',
+                              transform: active ? 'scale(1.05)' : 'scale(1)',
+                              boxShadow: active ? '0 3px 10px rgba(59,130,246,0.3)' : 'none',
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Time */}
+                    <div className="grid-2">
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.82rem' }}>
+                          وقت البداية <span className="required-star">*</span>
+                        </label>
+                        <input type="time" required className="glass-input" value={formData.startTime}
+                          onChange={e => setFormData({ ...formData, startTime: e.target.value })}/>
+                      </div>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.82rem' }}>
+                          وقت النهاية <span className="required-star">*</span>
+                        </label>
+                        <input type="time" required className="glass-input" value={formData.endTime}
+                          onChange={e => setFormData({ ...formData, endTime: e.target.value })}/>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Optional dates */}
@@ -606,8 +700,7 @@ export const ManageSectionsPage = () => {
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
               <span className="badge primary">{viewSection.instructor?.name}</span>
               <span className="badge secondary">{viewSection.room?.name}</span>
-              <span className="badge teal">{formatDays(viewSection.days)}</span>
-              <span className="badge warning">{viewSection.startTime} – {viewSection.endTime}</span>
+              <span className="badge teal">{formatSchedule(viewSection)}</span>
             </div>
 
             {sectionStudents.length === 0 ? (
@@ -658,8 +751,7 @@ export const ManageSectionsPage = () => {
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
               <span className="badge primary">{showConflictsFor.instructor?.name}</span>
               <span className="badge secondary">{showConflictsFor.room?.name}</span>
-              <span className="badge teal">{formatDays(showConflictsFor.days)}</span>
-              <span className="badge warning">{showConflictsFor.startTime} – {showConflictsFor.endTime}</span>
+              <span className="badge teal">{formatSchedule(showConflictsFor)}</span>
             </div>
 
             {conflicts.length === 0 ? (

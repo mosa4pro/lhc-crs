@@ -7,11 +7,16 @@ import { PermissionGuard } from '../components/PermissionGuard';
 
 interface Room {
   id: string; name: string; type: string; capacity: number;
-  floor?: string; building?: string; address?: string; hasProjector?: boolean; hasAC?: boolean; notes?: string;
+  floor?: string; building?: string; address?: string; learningType?: string;
+  hasProjector?: boolean; hasAC?: boolean; notes?: string;
 }
 
 const ROOM_TYPES: Record<string, string> = {
   CLASSROOM: 'قاعة دراسية', LAB: 'مختبر', HALL: 'قاعة كبرى', OFFICE: 'مكتب', OTHER: 'أخرى'
+};
+
+const LEARNING_TYPES: Record<string, string> = {
+  INSIDE_CENTER: 'داخل المركز', VIRTUAL_ROOM: 'قاعة وهمية', ONLINE: 'قاعة Online', EXTERNAL_ENTITY: 'جهة تعلم خارجية'
 };
 
 export const AdminRoomsPage = () => {
@@ -22,7 +27,7 @@ export const AdminRoomsPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Room | null>(null);
-  const [form, setForm] = useState({ name: '', type: 'CLASSROOM', capacity: 30, floor: '', building: '', address: '', hasProjector: false, hasAC: false, notes: '' });
+  const [form, setForm] = useState({ name: '', type: 'CLASSROOM', capacity: 30, floor: '', building: '', address: '', learningType: 'INSIDE_CENTER', hasProjector: false, hasAC: false, notes: '' });
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -35,13 +40,13 @@ export const AdminRoomsPage = () => {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', type: 'CLASSROOM', capacity: 30, floor: '', building: '', address: '', hasProjector: false, hasAC: false, notes: '' });
+    setForm({ name: '', type: 'CLASSROOM', capacity: 30, floor: '', building: '', address: '', learningType: 'INSIDE_CENTER', hasProjector: false, hasAC: false, notes: '' });
     setShowModal(true);
   };
 
   const openEdit = (r: Room) => {
     setEditing(r);
-    setForm({ name: r.name, type: r.type, capacity: r.capacity, floor: r.floor || '', building: r.building || '', address: r.address || '', hasProjector: !!r.hasProjector, hasAC: !!r.hasAC, notes: r.notes || '' });
+    setForm({ name: r.name, type: r.type, capacity: r.capacity, floor: r.floor || '', building: r.building || '', address: r.address || '', learningType: r.learningType || 'INSIDE_CENTER', hasProjector: !!r.hasProjector, hasAC: !!r.hasAC, notes: r.notes || '' });
     setShowModal(true);
   };
 
@@ -90,6 +95,7 @@ export const AdminRoomsPage = () => {
                 <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Users size={12}/> {r.capacity} مقعد
                 </span>
+                <span className="badge" style={{ fontSize: '0.72rem', background: 'rgba(99,102,241,0.1)', color: '#818cf8' }}>{LEARNING_TYPES[r.learningType || 'INSIDE_CENTER'] || r.learningType}</span>
                 {r.building && <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>🏛 {r.building}</span>}
                 {r.floor && <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>📍 طابق {r.floor}</span>}
                 {r.address && <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>📍 {r.address}</span>}
@@ -119,6 +125,12 @@ export const AdminRoomsPage = () => {
                   <label className="form-label">النوع</label>
                   <select className="glass-input" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
                     {Object.entries(ROOM_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">نوع التعلّم</label>
+                  <select className="glass-input" value={form.learningType} onChange={e => setForm({ ...form, learningType: e.target.value })}>
+                    {Object.entries(LEARNING_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </div>
                 <div className="form-group" style={{ margin: 0, gridColumn: '1/-1' }}>

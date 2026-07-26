@@ -338,6 +338,17 @@ export const AddToSectionPage = () => {
       .join(' - ');
   };
 
+  const formatSchedule = (sec: any) => {
+    if (!sec) return '';
+    if (sec.perDaySchedule && sec.scheduleDetails) {
+      const details = typeof sec.scheduleDetails === 'string' ? (() => { try { return JSON.parse(sec.scheduleDetails); } catch { return []; } })() : sec.scheduleDetails;
+      if (Array.isArray(details) && details.length > 0) {
+        return details.map((s: any) => `${dayLabels[s.day] || s.day} ${s.startTime}-${s.endTime}`).join(' | ');
+      }
+    }
+    return `${formatDays(sec.days)} ${sec.startTime ? `(${sec.startTime}-${sec.endTime})` : ''}`;
+  };
+
   // ── Render ──
   return (
     <div className="fade-in">
@@ -432,7 +443,7 @@ export const AddToSectionPage = () => {
                       <option value="">— اختر الشعبة —</option>
                       {hSectionList.map((s: any) => (
                         <option key={s.id} value={String(s.id)}>
-                          {s.name || 'شعبة'} — {s.instructor?.name || '-'} {s.startTime ? `(${s.startTime}-${s.endTime})` : ''} ({s._count?.students || 0} طالب)
+                          {s.name || 'شعبة'} — {s.instructor?.name || '-'} {formatSchedule(s)} ({s._count?.students || 0} طالب)
                           {s.status === 'CLOSED' ? ' 🔴' : s.status === 'COMPLETED' ? ' 🔵' : ''}
                         </option>
                       ))}
@@ -482,7 +493,7 @@ export const AddToSectionPage = () => {
                       <option value="">— اختر الشعبة —</option>
                       {hSectionList.map((s: any) => (
                         <option key={s.id} value={String(s.id)}>
-                          {s.name || 'شعبة'} — {s.instructor?.name || '-'} {s.startTime ? `(${s.startTime}-${s.endTime})` : ''} ({s._count?.students || 0} طالب)
+                          {s.name || 'شعبة'} — {s.instructor?.name || '-'} {formatSchedule(s)} ({s._count?.students || 0} طالب)
                           {s.status === 'CLOSED' ? ' 🔴' : s.status === 'COMPLETED' ? ' 🔵' : ''}
                         </option>
                       ))}
@@ -505,7 +516,7 @@ export const AddToSectionPage = () => {
                 <span>🟢 الحالة: <strong>{activeSection.status === 'OPEN' ? 'مفتوحة' : activeSection.status === 'CLOSED' ? 'مغلقة' : 'منتهية'}</strong></span>
                 <span>الاستيعاب: <strong>{activeSection.capacity}</strong></span>
                 <span>المسجلون: <strong style={{ color: enrolledIds.size >= activeSection.capacity ? 'var(--danger)' : 'var(--success)' }}>{enrolledIds.size}/{activeSection.capacity}</strong></span>
-                <span>المواعيد: <strong>{formatDays(activeSection.days)} {activeSection.startTime} — {activeSection.endTime}</strong></span>
+                <span>المواعيد: <strong>{formatSchedule(activeSection)}</strong></span>
               </div>
             </div>
           )}
@@ -559,8 +570,7 @@ export const AddToSectionPage = () => {
                                         <thead>
                                           <tr>
                                             <th>الدورة</th>
-                                            <th>الأيام</th>
-                                            <th>الوقت</th>
+                                            <th>الجدول</th>
                                             <th>المدرب</th>
                                             <th>القاعة</th>
                                           </tr>
@@ -569,8 +579,7 @@ export const AddToSectionPage = () => {
                                           {studentSchedule.map((sec: any) => (
                                             <tr key={sec.id}>
                                               <td style={{ fontWeight: 600 }}>{sec.courseName || '—'}</td>
-                                              <td>{formatDays(sec.days)}</td>
-                                              <td dir="ltr">{sec.startTime} - {sec.endTime}</td>
+                                              <td style={{ fontSize: '0.78rem' }}>{formatSchedule(sec)}</td>
                                               <td>{sec.instructorName || '—'}</td>
                                               <td>{sec.roomName || '—'}</td>
                                             </tr>
@@ -630,8 +639,7 @@ export const AddToSectionPage = () => {
                                         <thead>
                                           <tr>
                                             <th>الدورة</th>
-                                            <th>الأيام</th>
-                                            <th>الوقت</th>
+                                            <th>الجدول</th>
                                             <th>المدرب</th>
                                             <th>القاعة</th>
                                           </tr>
@@ -640,8 +648,7 @@ export const AddToSectionPage = () => {
                                           {studentSchedule.map((sec: any) => (
                                             <tr key={sec.id}>
                                               <td style={{ fontWeight: 600 }}>{sec.courseName || '—'}</td>
-                                              <td>{formatDays(sec.days)}</td>
-                                              <td dir="ltr">{sec.startTime} - {sec.endTime}</td>
+                                              <td style={{ fontSize: '0.78rem' }}>{formatSchedule(sec)}</td>
                                               <td>{sec.instructorName || '—'}</td>
                                               <td>{sec.roomName || '—'}</td>
                                             </tr>
@@ -759,13 +766,12 @@ export const AddToSectionPage = () => {
                 {studentSections.length > 0 ? (
                   <div className="glass-table-container" style={{ maxHeight: 300, overflowY: 'auto' }}>
                     <table className="glass-table">
-                      <thead><tr><th>الدورة</th><th>الأيام</th><th>الوقت</th><th>المدرب</th><th>القاعة</th><th></th></tr></thead>
+                      <thead><tr><th>الدورة</th><th>الجدول</th><th>المدرب</th><th>القاعة</th></tr></thead>
                       <tbody>
                         {studentSections.map(sec => (
                           <tr key={sec.id}>
                             <td style={{ fontWeight: 600 }}>{sec.courseName || sec.name || '—'}</td>
-                            <td style={{ fontSize: '0.82rem' }}>{formatDays(sec.days)}</td>
-                            <td style={{ fontSize: '0.82rem', direction: 'ltr' }}>{sec.startTime} - {sec.endTime}</td>
+                            <td style={{ fontSize: '0.82rem' }}>{formatSchedule(sec)}</td>
                             <td style={{ fontSize: '0.85rem' }}>{sec.instructorName || '—'}</td>
                             <td style={{ fontSize: '0.85rem' }}>{sec.roomName || '—'}</td>
                             <td>
@@ -816,7 +822,7 @@ export const AddToSectionPage = () => {
                             </div>
                             <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{log.from.courseName}</div>
                             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                              {log.from.name || 'شعبة'} — {formatDays(log.from.days)} {log.from.startTime}-{log.from.endTime}
+                              {log.from.name || 'شعبة'} — {formatSchedule(log.from)}
                             </div>
                             <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                               {log.from.instructorName} | {log.from.roomName}
@@ -833,7 +839,7 @@ export const AddToSectionPage = () => {
                             </div>
                             <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{log.to.courseName}</div>
                             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                              {log.to.name || 'شعبة'} — {formatDays(log.to.days)} {log.to.startTime}-{log.to.endTime}
+                              {log.to.name || 'شعبة'} — {formatSchedule(log.to)}
                             </div>
                             <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                               {log.to.instructorName} | {log.to.roomName}
@@ -857,8 +863,7 @@ export const AddToSectionPage = () => {
                     <table className="glass-table">
                       <thead><tr>
                         <th>الدورة</th>
-                        <th>الأيام</th>
-                        <th>الوقت</th>
+                        <th>الجدول</th>
                         <th>المدرب</th>
                         <th>القاعة</th>
                         <th>المقاعد</th>
@@ -868,8 +873,7 @@ export const AddToSectionPage = () => {
                         {availableSections.map(sec => (
                           <tr key={sec.id} style={sec.hasConflict ? { background: 'var(--danger-light)', opacity: 0.7 } : {}}>
                             <td style={{ fontWeight: 600 }}>{sec.courseName || sec.name || '—'}</td>
-                            <td style={{ fontSize: '0.82rem' }}>{formatDays(sec.days)}</td>
-                            <td style={{ fontSize: '0.82rem', direction: 'ltr' }}>{sec.startTime} - {sec.endTime}</td>
+                            <td style={{ fontSize: '0.82rem' }}>{formatSchedule(sec)}</td>
                             <td style={{ fontSize: '0.85rem' }}>{sec.instructorName || '—'}</td>
                             <td style={{ fontSize: '0.85rem' }}>{sec.roomName || '—'}</td>
                             <td style={{ fontSize: '0.82rem', textAlign: 'center' }}>
@@ -879,7 +883,7 @@ export const AddToSectionPage = () => {
                             </td>
                             <td>
                               {sec.hasConflict ? (
-                                <span title={sec.conflicts?.map((c: any) => `تعارض مع ${c.name || 'شعبة'}: ${formatDays(c.days)} ${c.startTime}-${c.endTime}`).join(' | ')}>
+                                <span title={sec.conflicts?.map((c: any) => `تعارض مع ${c.name || 'شعبة'}: ${formatSchedule(c)}`).join(' | ')}>
                                   <AlertCircle size={15} color="var(--danger)" style={{ verticalAlign: 'middle' }} />
                                 </span>
                               ) : (
@@ -985,15 +989,14 @@ export const AddToSectionPage = () => {
                 {trEnrolled.length > 0 ? (
                   <div className="glass-table-container" style={{ maxHeight: 400, overflowY: 'auto' }}>
                     <table className="glass-table">
-                      <thead><tr><th>الدورة</th><th>الأيام</th><th>الوقت</th><th>المدرب</th><th>القاعة</th><th>من</th><th>إلى</th><th>نقل</th></tr></thead>
+                      <thead><tr><th>الدورة</th><th>الجدول</th><th>المدرب</th><th>القاعة</th><th>من</th><th>إلى</th><th>نقل</th></tr></thead>
                       <tbody>
                         {trEnrolled.map(sec => {
                           const targets = getAvailForCourse(sec.courseId);
                           return (
                             <tr key={sec.id}>
                               <td style={{ fontWeight: 600 }}>{sec.courseName}</td>
-                              <td style={{ fontSize: '0.82rem' }}>{formatDays(sec.days)}</td>
-                              <td style={{ fontSize: '0.82rem', direction: 'ltr' }}>{sec.startTime} - {sec.endTime}</td>
+                              <td style={{ fontSize: '0.82rem' }}>{formatSchedule(sec)}</td>
                               <td style={{ fontSize: '0.85rem' }}>{sec.instructorName || '—'}</td>
                               <td style={{ fontSize: '0.85rem' }}>{sec.roomName || '—'}</td>
                               <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{sec.enrollDate ? new Date(sec.enrollDate).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</td>
@@ -1080,8 +1083,7 @@ export const AddToSectionPage = () => {
                             <span>👨‍🏫 {sec.instructorName}</span>
                             <span>🏠 {sec.roomName}</span>
                             <span>📅 {sec.startDate ? `${new Date(sec.startDate).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' })}` : '-'} → {sec.endDate && new Date(sec.endDate) <= new Date() ? new Date(sec.endDate).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' }) : 'الآن'}</span>
-                            <span>📅 {sec.days ? formatDays(sec.days) : '-'}</span>
-                            <span>🕐 {sec.startTime}-{sec.endTime}</span>
+                            <span>📅 {sec.days ? formatSchedule(sec) : '-'}</span>
                             <span>👥 {sec.enrolledCount}/{sec.capacity}</span>
                           </div>
                           {sec.hasConflict && (
