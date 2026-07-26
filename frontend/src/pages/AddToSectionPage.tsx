@@ -538,7 +538,7 @@ export const AddToSectionPage = () => {
                   </h3>
                   <div className="glass-table-container" style={{ maxHeight: 500, overflowY: 'auto' }}>
                     <table className="glass-table">
-                      <thead><tr><th>الطالب</th><th>الهاتف</th><th></th></tr></thead>
+                      <thead><tr><th>الطالب</th><th>الرقم</th><th>الهاتف</th><th></th></tr></thead>
                       <tbody>
                         {nonEnrolled.filter(qfilter).slice(0, 50).map(s => (
                           <React.Fragment key={s.id}>
@@ -549,6 +549,7 @@ export const AddToSectionPage = () => {
                                   {expandedStudent === s.id ? '▲' : '▼'}
                                 </span>
                               </td>
+                              <td style={{ fontSize: '0.82rem', direction: 'ltr', color: 'var(--text-muted)' }}>{s.studentCode || s.id}</td>
                               <td dir="ltr" style={{ fontSize: '0.85rem', textAlign: 'right' }}>{getPhone(s.phones) ? `0${getPhone(s.phones)}` : '—'}</td>
                               <td>
                                 <button className="glass-btn sm success" onClick={() => handleAdd(s.id)}
@@ -559,7 +560,7 @@ export const AddToSectionPage = () => {
                             </tr>
                             {expandedStudent === s.id && (
                               <tr>
-                                <td colSpan={3} style={{ padding: 0, background: 'var(--bg-muted)', borderBottom: '1px solid var(--glass-border)' }}>
+                                <td colSpan={4} style={{ padding: 0, background: 'var(--bg-muted)', borderBottom: '1px solid var(--glass-border)' }}>
                                   {scheduleLoading ? (
                                     <div style={{ padding: '10px 16px', textAlign: 'center', opacity: 0.5, fontSize: '0.78rem' }}>جارٍ تحميل الجدول...</div>
                                   ) : studentSchedule.length === 0 ? (
@@ -595,7 +596,7 @@ export const AddToSectionPage = () => {
                           </React.Fragment>
                         ))}
                         {nonEnrolled.filter(qfilter).length === 0 && (
-                          <tr><td colSpan={3} style={{ textAlign: 'center', padding: 24, opacity: 0.5 }}>لا يوجد طلاب</td></tr>
+                          <tr><td colSpan={4} style={{ textAlign: 'center', padding: 24, opacity: 0.5 }}>لا يوجد طلاب</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -608,7 +609,7 @@ export const AddToSectionPage = () => {
                   </h3>
                   <div className="glass-table-container" style={{ maxHeight: 500, overflowY: 'auto' }}>
                     <table className="glass-table">
-                      <thead><tr><th>الطالب</th><th>الهاتف</th><th></th></tr></thead>
+                      <thead><tr><th>الطالب</th><th>الرقم</th><th>الهاتف</th><th></th></tr></thead>
                       <tbody>
                         {enrolled.filter(qfilter).slice(0, 50).map((s: any) => (
                           <React.Fragment key={s.id}>
@@ -619,6 +620,7 @@ export const AddToSectionPage = () => {
                                   {expandedStudent === s.id ? '▲' : '▼'}
                                 </span>
                               </td>
+                              <td style={{ fontSize: '0.82rem', direction: 'ltr', color: 'var(--text-muted)' }}>{s.studentCode || s.id}</td>
                               <td dir="ltr" style={{ fontSize: '0.85rem', textAlign: 'right' }}>{getPhone(s.phones) ? `0${getPhone(s.phones)}` : '—'}</td>
                               <td>
                                 <button className="glass-btn sm danger" onClick={() => handleRemove(s.id)} disabled={adding === s.id}>
@@ -628,7 +630,7 @@ export const AddToSectionPage = () => {
                             </tr>
                             {expandedStudent === s.id && (
                               <tr>
-                                <td colSpan={3} style={{ padding: 0, background: 'var(--bg-muted)', borderBottom: '1px solid var(--glass-border)' }}>
+                                <td colSpan={4} style={{ padding: 0, background: 'var(--bg-muted)', borderBottom: '1px solid var(--glass-border)' }}>
                                   {scheduleLoading ? (
                                     <div style={{ padding: '10px 16px', textAlign: 'center', opacity: 0.5, fontSize: '0.78rem' }}>جارٍ تحميل الجدول...</div>
                                   ) : studentSchedule.length === 0 ? (
@@ -664,7 +666,7 @@ export const AddToSectionPage = () => {
                           </React.Fragment>
                         ))}
                         {enrolled.filter(qfilter).length === 0 && (
-                          <tr><td colSpan={3} style={{ textAlign: 'center', padding: 24, opacity: 0.5 }}>لا يوجد طلاب مسجلين</td></tr>
+                          <tr><td colSpan={4} style={{ textAlign: 'center', padding: 24, opacity: 0.5 }}>لا يوجد طلاب مسجلين</td></tr>
                         )}
                       </tbody>
                     </table>
