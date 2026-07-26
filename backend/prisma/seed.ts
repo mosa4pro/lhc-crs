@@ -13,7 +13,8 @@ const ALL_PERMISSIONS = [
   'diplomas.view', 'diplomas.add', 'diplomas.edit', 'diplomas.delete', 'diplomas.manage',
   'sections.view', 'sections.add', 'sections.edit', 'sections.delete', 'sections.manage',
   'sections.assign',
-  'attendance.view', 'attendance.manage',
+  'attendance.view', 'attendance.manage', 'attendance.admin',
+  'grades.approve',
   'reports.academic',
   // الموظفون
   'employees.view', 'employees.add', 'employees.edit', 'employees.delete',

@@ -110,6 +110,9 @@ export const ALL_PERMISSIONS = [
   // صفحة الحضور
   { key: 'attendance.view', label: 'عرض الحضور', group: 'التسجيل', page: 'صفحة الحضور' },
   { key: 'attendance.manage', label: 'تسجيل وتعديل الحضور', group: 'التسجيل', page: 'صفحة الحضور' },
+  { key: 'attendance.admin', label: 'إدارة الحضور (فتح/تعديل/حذف)', group: 'التسجيل', page: 'صفحة الحضور' },
+  // الدرجات
+  { key: 'grades.approve', label: 'اعتماد الدرجات', group: 'التسجيل', page: 'صفحة الدرجات' },
   // التقارير الأكاديمية
   { key: 'reports.academic', label: 'التقارير الأكاديمية', group: 'التسجيل', page: 'التقارير الأكاديمية' },
 
