@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search, Save, RefreshCw, Users, Trash2, Plus, Filter,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Phone, Building2, Hash, CheckSquare, X, BookOpen, Clock, GraduationCap, User,
-  Shield, ShieldOff, XCircle
+  Shield, ShieldOff, XCircle, Eye, EyeOff, UserCog, ClipboardList
 } from 'lucide-react';
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
@@ -412,7 +412,11 @@ export const StudentsPage = () => {
   const [filterGradeResult, setFilterGradeResult] = useState('');
   const [filterPaymentStatus, setFilterPaymentStatus] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showStats, setShowStats] = useState(true);
+  const [showList, setShowList] = useState(true);
   const [hierarchy, setHierarchy] = useState<{ teamLeaders: any[]; supervisors: any[]; registrars: any[] }>({ teamLeaders: [], supervisors: [], registrars: [] });
+  const [selectedSupervisorId, setSelectedSupervisorId] = useState('');
+  const [selectedRegistrarId, setSelectedRegistrarId] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -614,6 +618,12 @@ export const StudentsPage = () => {
   const isSupervisor = user?.role === 'SUPERVISOR';
   const isRegistrar = user?.role === 'REGISTRAR' || user?.role === 'EMPLOYEE';
 
+  const canAssignSupervisor = isAdmin || isTeamLeader;
+  const canAssignRegistrar = isAdmin || isTeamLeader || isSupervisor;
+  const cascadedRegistrars = selectedSupervisorId
+    ? hierarchy.registrars.filter((r: any) => String(r.supervisorId) === String(selectedSupervisorId))
+    : [];
+
   useEffect(() => {
     apiFetch('/students/users/hierarchy').then(h => {
       setHierarchy(h);
@@ -640,6 +650,13 @@ export const StudentsPage = () => {
           }
         }
         // isTeamLeader: nothing auto-set, they pick
+      }
+      // Auto-select supervisor (self) for supervisor/registrar in the assignment cascades
+      if (!isAdmin && !isTeamLeader && h.supervisors?.length === 1) {
+        setSelectedSupervisorId(String(h.supervisors[0].id));
+      }
+      if (isRegistrar && h.registrars?.length === 1) {
+        setSelectedRegistrarId(String(h.registrars[0].id));
       }
     }).catch(() => {});
   }, []);
@@ -684,6 +701,10 @@ export const StudentsPage = () => {
     setIdError('');
     setFormErrors({});
     setFormVersion(prev => prev + 1);
+    // Map supervisor employeeId → hierarchy user id, and registrar user id
+    const sup = hierarchy.supervisors.find(x => x.employeeId === s.supervisorEmployeeId);
+    setSelectedSupervisorId(sup ? String(sup.id) : '');
+    setSelectedRegistrarId(s.registeredByUserId ? String(s.registeredByUserId) : '');
   };
 
   const toggleExpand = (studentId: string) => {
@@ -721,6 +742,9 @@ export const StudentsPage = () => {
     setIdError('');
     setFormErrors({});
     setFormVersion(prev => prev + 1);
+    // Reset cascading assignment (auto-set for supervisor/registrar happens in hierarchy effect)
+    if (isAdmin || isTeamLeader || isSupervisor) setSelectedSupervisorId(isSupervisor && hierarchy.supervisors.length === 1 ? String(hierarchy.supervisors[0].id) : '');
+    setSelectedRegistrarId('');
   };
 
   const updatePhone = useCallback((i: number, partial: Partial<PhoneEntry>) => {
@@ -832,6 +856,10 @@ export const StudentsPage = () => {
         governorate: form.governorate,
         marketerName: form.marketerName,
         markerEmployeeId: form.markerEmployeeId,
+        supervisorEmployeeId: selectedSupervisorId
+          ? (hierarchy.supervisors.find(sup => String(sup.id) === String(selectedSupervisorId))?.employeeId ?? null)
+          : undefined,
+        registeredByUserId: selectedRegistrarId ? Number(selectedRegistrarId) : undefined,
         notes: form.notes,
       };
 
@@ -1278,6 +1306,62 @@ export const StudentsPage = () => {
           />
         </div>
 
+        {/* Cascading staff assignment: Admin/TL → Supervisor → Registrar */}
+        <div className="form-group" style={{ marginBottom: 14, padding: '14px 16px', background: 'var(--card-bg)', border: '1px solid var(--glass-border)', borderRadius: 12 }}>
+          <label className="form-label" style={{ marginBottom: 10 }}>
+            <UserCog size={15} style={{ verticalAlign: 'middle', marginLeft: 6 }} />
+            المسؤولية والتسلسل الإداري
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.82rem' }}>
+                <Shield size={13} style={{ verticalAlign: 'middle', marginLeft: 5 }} />
+                المشرف المسؤول
+              </label>
+              <select
+                className="glass-input"
+                value={selectedSupervisorId}
+                onChange={e => { setSelectedSupervisorId(e.target.value); setSelectedRegistrarId(''); }}
+                disabled={!canAssignSupervisor}
+                style={{ fontSize: '0.85rem' }}
+              >
+                <option value="">— اختر المشرف —</option>
+                {hierarchy.supervisors.filter((s: any) => s.employeeId).map((sup: any) => (
+                  <option key={sup.id} value={sup.id}>{sup.fullName}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.82rem' }}>
+                <ClipboardList size={13} style={{ verticalAlign: 'middle', marginLeft: 5 }} />
+                المسجل المسؤول
+              </label>
+              <select
+                className="glass-input"
+                value={selectedRegistrarId}
+                onChange={e => setSelectedRegistrarId(e.target.value)}
+                disabled={!canAssignRegistrar || !selectedSupervisorId}
+                style={{ fontSize: '0.85rem' }}
+              >
+                <option value="">— اختر المسجل —</option>
+                {cascadedRegistrars.map((reg: any) => (
+                  <option key={reg.id} value={reg.id}>{reg.fullName}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {canAssignSupervisor && !selectedSupervisorId && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8 }}>
+              اختر المشرف أولًا لعرض المسجلين المرتبطين به
+            </div>
+          )}
+          {canAssignSupervisor && selectedSupervisorId && cascadedRegistrars.length === 0 && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-warning)', marginTop: 8 }}>
+              لا يوجد مسجلون مرتبطون بهذا المشرف
+            </div>
+          )}
+        </div>
+
         {/* Notes */}
         <div className="form-group">
           <label className="form-label">ملاحظات</label>
@@ -1323,6 +1407,15 @@ export const StudentsPage = () => {
       {/* ===== STUDENTS TABLE (LEFT in RTL — second in DOM) ===== */}
       <div className="glass-panel split-panel" style={{ flex: 1, minWidth: 0, borderRadius: 'var(--radius-lg) 0 0 var(--radius-lg)', margin: 0 }}>
         {/* ===== ALL STAT CARDS — unified, premium ===== */}
+        <div style={{
+          display: 'grid',
+          gridTemplateRows: showStats ? '1fr' : '0fr',
+          transition: 'grid-template-rows 0.35s ease, opacity 0.3s ease',
+          opacity: showStats ? 1 : 0,
+          overflow: 'hidden',
+          marginBottom: showStats ? 0 : 0,
+        }}>
+          <div style={{ minHeight: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
           {/* إجمالي الطلاب */}
           <div className="stat-card blue" style={{ flex: '0 0 auto', minWidth: 140, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -1410,6 +1503,8 @@ export const StudentsPage = () => {
             </select>
           </div>
         </div>
+          </div>
+        </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
           <h3 style={{ margin: 0, fontSize: '1rem' }}>
@@ -1423,6 +1518,24 @@ export const StudentsPage = () => {
           </h3>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Toggle stat cards */}
+            <button
+              className={`glass-btn icon-btn ${!showStats ? 'active-filter' : ''}`}
+              onClick={() => setShowStats(v => !v)}
+              title={showStats ? 'إخفاء الكروت الإحصائية' : 'إظهار الكروت الإحصائية'}
+              style={!showStats ? { boxShadow: '0 0 0 2px var(--primary)', color: 'var(--primary)' } : {}}
+            >
+              {showStats ? <Eye size={18} /> : <EyeOff size={18} />}
+            </button>
+            {/* Toggle students list */}
+            <button
+              className={`glass-btn icon-btn ${!showList ? 'active-filter' : ''}`}
+              onClick={() => setShowList(v => !v)}
+              title={showList ? 'إخفاء قائمة الطلاب' : 'إظهار قائمة الطلاب'}
+              style={!showList ? { boxShadow: '0 0 0 2px var(--primary)', color: 'var(--primary)' } : {}}
+            >
+              {showList ? <Users size={18} /> : <EyeOff size={18} />}
+            </button>
             {/* Simple Search */}
             <div style={{ position: 'relative', width: 220 }}>
               <Search size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none', zIndex: 1 }} />
@@ -1545,6 +1658,14 @@ export const StudentsPage = () => {
         )}
 
         {/* Bulk Action Bar */}
+        <div style={{
+          display: 'grid',
+          gridTemplateRows: showList ? '1fr' : '0fr',
+          transition: 'grid-template-rows 0.35s ease, opacity 0.3s ease',
+          opacity: showList ? 1 : 0,
+          overflow: 'hidden',
+        }}>
+          <div style={{ minHeight: 0, overflow: 'hidden' }}>
         {selectedIds.size > 0 && (
           <div style={{
             padding: '10px 16px', marginBottom: 12,
@@ -1818,6 +1939,8 @@ export const StudentsPage = () => {
             </button>
           </div>
         )}
+          </div>
+        </div>
       </div>
 
       {/* Deep Search Modal */}

@@ -479,7 +479,7 @@ router.post('/', authMiddleware, requirePermission('students.add'), async (req, 
       'nationalId', 'passportId', 'personalId', 'phones', 'phoneCodes',
       'whatsappOnly', 'isIdNumber', 'address', 'governorate', 'studentType',
       'universityName', 'universityId', 'highSchoolPassed', 'status',
-      'marketerName', 'markerEmployeeId', 'notes', 'registrationDate'
+      'marketerName', 'markerEmployeeId', 'supervisorEmployeeId', 'registeredByUserId', 'notes', 'registrationDate'
     ];
     const data: any = {};
     for (const key of STUDENT_SCALAR_FIELDS) {
@@ -503,11 +503,35 @@ router.post('/', authMiddleware, requirePermission('students.add'), async (req, 
       data.markerEmployeeId = (req as any).user.employeeId;
     }
 
-    // Set registeredByUserId to the currently logged-in user
-    data.registeredByUserId = (req as any).user?.id || null;
+    const authUser = (req as any).user;
+    const isAdminOrTL = authUser.role === 'ADMIN' || authUser.role === 'TEAM_LEADER'
+      || authUser.permissions?.some((p: any) => p.permission?.name === 'ADMIN_ALL');
 
-    // Auto-set supervisorEmployeeId from marker employee's supervisor
-    if (data.markerEmployeeId && !data.supervisorEmployeeId) {
+    // Assign supervisor + registrar based on role (cascading: admin/TL → supervisor → registrar)
+    if (isAdminOrTL) {
+      if (req.body.supervisorEmployeeId != null) data.supervisorEmployeeId = parseInt(req.body.supervisorEmployeeId) || null;
+      if (req.body.registeredByUserId != null) data.registeredByUserId = parseInt(req.body.registeredByUserId) || null;
+      if (!data.registeredByUserId) data.registeredByUserId = authUser.id;
+    } else if (authUser.role === 'SUPERVISOR') {
+      // Supervisor: force supervisorEmployeeId to self
+      if (authUser.employeeId) data.supervisorEmployeeId = authUser.employeeId;
+      if (req.body.registeredByUserId != null && parseInt(req.body.registeredByUserId) !== authUser.id) {
+        const sub = await prisma.user.findFirst({
+          where: { id: parseInt(req.body.registeredByUserId), supervisorId: authUser.id, status: 'ACTIVE' }
+        });
+        data.registeredByUserId = sub ? sub.id : authUser.id;
+      } else {
+        data.registeredByUserId = authUser.id;
+      }
+    } else {
+      // Registrar/Employee: only self
+      delete data.supervisorEmployeeId;
+      delete data.registeredByUserId;
+      data.registeredByUserId = authUser.id || null;
+    }
+
+    // Auto-set supervisorEmployeeId from marker employee's supervisor (fallback)
+    if (!data.supervisorEmployeeId && data.markerEmployeeId) {
       const markerEmp = await prisma.employee.findUnique({
         where: { id: parseInt(data.markerEmployeeId) },
         select: { supervisorId: true }
@@ -596,7 +620,7 @@ router.put('/:id', authMiddleware, requirePermission('students.edit'), async (re
       'nationalId', 'passportId', 'personalId', 'phones', 'phoneCodes',
       'whatsappOnly', 'isIdNumber', 'address', 'governorate', 'studentType',
       'universityName', 'universityId', 'highSchoolPassed', 'status',
-      'marketerName', 'markerEmployeeId', 'notes', 'registrationDate'
+      'marketerName', 'markerEmployeeId', 'supervisorEmployeeId', 'registeredByUserId', 'notes', 'registrationDate'
     ];
     const data: any = {};
     for (const key of STUDENT_SCALAR_FIELDS) {
@@ -613,6 +637,28 @@ router.put('/:id', authMiddleware, requirePermission('students.edit'), async (re
     if (Array.isArray(data.whatsappOnly)) data.whatsappOnly = JSON.stringify(data.whatsappOnly);
     if (Array.isArray(data.isIdNumber)) data.isIdNumber = JSON.stringify(data.isIdNumber);
     if (data.dob) data.dob = new Date(data.dob);
+
+    // Role-aware supervisor/registrar assignment (mirrors create logic)
+    const authUser = (req as any).user;
+    const isAdminOrTL = authUser.role === 'ADMIN' || authUser.role === 'TEAM_LEADER'
+      || authUser.permissions?.some((p: any) => p.permission?.name === 'ADMIN_ALL');
+    if (data.supervisorEmployeeId != null) data.supervisorEmployeeId = parseInt(data.supervisorEmployeeId) || null;
+    if (data.registeredByUserId != null) data.registeredByUserId = parseInt(data.registeredByUserId) || null;
+    if (!isAdminOrTL) {
+      if (authUser.role === 'SUPERVISOR') {
+        if (authUser.employeeId) data.supervisorEmployeeId = authUser.employeeId;
+        if (data.registeredByUserId != null && data.registeredByUserId !== authUser.id) {
+          const sub = await prisma.user.findFirst({
+            where: { id: data.registeredByUserId, supervisorId: authUser.id, status: 'ACTIVE' }
+          });
+          if (!sub) delete data.registeredByUserId;
+        }
+      } else {
+        // Registrar/Employee cannot change the assignee links
+        delete data.supervisorEmployeeId;
+        delete data.registeredByUserId;
+      }
+    }
 
     // Check national ID uniqueness on update
     if (data.nationality === 'JO' && data.nationalId) {
