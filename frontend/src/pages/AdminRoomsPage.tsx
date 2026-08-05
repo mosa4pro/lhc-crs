@@ -4,6 +4,7 @@ import { BedDouble, Plus, Edit2, Trash2, RefreshCw, Monitor, Users } from 'lucid
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { PermissionGuard } from '../components/PermissionGuard';
+import { LEARNING_TYPES } from '../components/LearningTypeBadge';
 
 interface Room {
   id: string; name: string; type: string; capacity: number;
@@ -13,10 +14,6 @@ interface Room {
 
 const ROOM_TYPES: Record<string, string> = {
   CLASSROOM: 'قاعة دراسية', LAB: 'مختبر', HALL: 'قاعة كبرى', OFFICE: 'مكتب', OTHER: 'أخرى'
-};
-
-const LEARNING_TYPES: Record<string, string> = {
-  INSIDE_CENTER: 'داخل المركز', VIRTUAL_ROOM: 'قاعة وهمية', ONLINE: 'قاعة Online', EXTERNAL_ENTITY: 'جهة تعلم خارجية'
 };
 
 export const AdminRoomsPage = () => {

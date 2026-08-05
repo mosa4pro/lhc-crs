@@ -873,7 +873,7 @@ router.get('/:id/available-sections', authMiddleware, requirePermission('student
       },
       include: {
         course: { select: { id: true, name: true, minPayment: true } },
-        room: { select: { id: true, name: true } },
+        room: { select: { id: true, name: true, learningType: true, address: true } },
         instructor: { select: { id: true, name: true } },
       },
       orderBy: [{ courseId: 'asc' }, { startTime: 'asc' }],
@@ -913,6 +913,8 @@ router.get('/:id/available-sections', authMiddleware, requirePermission('student
         startDate: s.startDate,
         endDate: s.endDate,
         roomName: s.room?.name || '',
+        roomLearningType: s.room?.learningType || null,
+        roomAddress: s.room?.address || '',
         instructorName: s.instructor?.name || '',
         capacity: s.capacity,
         enrolledCount: enrolledCountMap.get(s.id) || 0,

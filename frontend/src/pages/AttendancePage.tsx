@@ -5,6 +5,7 @@ import {
   BookOpen, GraduationCap, ChevronLeft, Users, Lock, Unlock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { LearningTypeBadge } from '../components/LearningTypeBadge';
 import { DIPLOMA_CATEGORIES } from '../utils/constants';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -474,8 +475,7 @@ export const AttendancePage = () => {
               { label: 'المحاضر', value: sectionInfo.instructor?.name },
               { label: 'الأيام', value: formatDays(sectionInfo.days) },
               { label: 'الوقت', value: `${sectionInfo.startTime} - ${sectionInfo.endTime}` },
-            ].map(({ label, value }) => value ? (
-              <div key={label} style={{
+            ].map(({ label, value }) => value ? (              <div key={label} style={{
                 background: 'var(--primary-light)', borderRadius: 8, padding: '5px 14px',
                 fontSize: '0.82rem', display: 'flex', gap: 6, alignItems: 'center'
               }}>
@@ -483,6 +483,9 @@ export const AttendancePage = () => {
                 <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{value}</span>
               </div>
             ) : null)}
+            {sectionInfo.room?.learningType && (
+              <LearningTypeBadge value={sectionInfo.room.learningType} />
+            )}
 
             {tab === 'record' && (
               <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>

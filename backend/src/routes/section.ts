@@ -388,6 +388,8 @@ router.get('/students/:studentId/enrolled-sections', authMiddleware, requirePerm
       endTime: ss.section.endTime,
       instructorName: ss.section.instructor?.name || '',
       roomName: ss.section.room?.name || '',
+      roomLearningType: ss.section.room?.learningType || null,
+      roomAddress: ss.section.room?.address || '',
       startDate: ss.section.startDate,
       endDate: ss.section.endDate,
       enrollDate: ss.enrollDate,
@@ -525,6 +527,7 @@ router.get('/students/:studentId/transfer-log', authMiddleware, requirePermissio
         endTime: log.fromSection.endTime,
         instructorName: log.fromSection.instructor?.name || '',
         roomName: log.fromSection.room?.name || '',
+        roomLearningType: log.fromSection.room?.learningType || null,
       },
       to: {
         id: log.toSection.id,
@@ -535,6 +538,7 @@ router.get('/students/:studentId/transfer-log', authMiddleware, requirePermissio
         endTime: log.toSection.endTime,
         instructorName: log.toSection.instructor?.name || '',
         roomName: log.toSection.room?.name || '',
+        roomLearningType: log.toSection.room?.learningType || null,
       },
     })));
   } catch {

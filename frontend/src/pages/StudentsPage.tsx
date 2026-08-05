@@ -8,6 +8,10 @@ import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { DeepSearchModal, type DeepSearchFilters } from '../components/DeepSearchModal';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { LearningTypeBadge } from '../components/LearningTypeBadge';
+import { ViewToggleButton as ViewToggleButtonComp } from '../components/ViewToggleButton';
+
+const ViewToggleButton = ViewToggleButtonComp;
 import { JORDANIAN_UNIVERSITIES, COUNTRY_CODES, normalizeDigits, STUDENT_STATUS_MAP } from '../utils/constants';
 
 // ==========================================
@@ -345,50 +349,6 @@ const UniversitySelect = ({ value, onChange, ...rest }: { value: string; onChang
     </div>
   );
 };
-
-// ==========================================
-// View Toggle Button — professional pill toggle
-// ==========================================
-const ViewToggleButton = ({ active, onClick, icon, label, title }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; title: string }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    title={title}
-    aria-pressed={active}
-    style={{
-      display: 'flex', alignItems: 'center', gap: 8,
-      padding: '9px 18px', borderRadius: 12,
-      border: `1.5px solid ${active ? 'var(--primary)' : 'var(--glass-border)'}`,
-      background: active ? 'linear-gradient(135deg, var(--primary), var(--secondary))' : 'var(--card-bg)',
-      color: active ? '#fff' : 'var(--text-secondary)',
-      cursor: 'pointer', fontSize: '0.83rem', fontWeight: 700,
-      fontFamily: 'inherit', letterSpacing: '-0.01em',
-      backdropFilter: 'blur(10px)',
-      boxShadow: active ? '0 6px 18px var(--primary-glow), inset 0 1px 0 rgba(255,255,255,0.25)' : '0 2px 6px rgba(0,0,0,0.06)',
-      transition: 'all 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-      position: 'relative', overflow: 'hidden',
-    }}
-    onMouseEnter={e => {
-      if (!active) {
-        e.currentTarget.style.borderColor = 'var(--primary)';
-        e.currentTarget.style.color = 'var(--primary)';
-        e.currentTarget.style.background = 'var(--primary-light)';
-        e.currentTarget.style.transform = 'translateY(-1px)';
-      }
-    }}
-    onMouseLeave={e => {
-      if (!active) {
-        e.currentTarget.style.borderColor = 'var(--glass-border)';
-        e.currentTarget.style.color = 'var(--text-secondary)';
-        e.currentTarget.style.background = 'var(--card-bg)';
-        e.currentTarget.style.transform = 'translateY(0)';
-      }
-    }}
-  >
-    <span style={{ display: 'flex', alignItems: 'center', opacity: active ? 1 : 0.7, transition: 'opacity 0.2s' }}>{icon}</span>
-    {label}
-  </button>
-);
 
 // ==========================================
 // Helper: Parse phones from student data
@@ -1890,6 +1850,7 @@ export const StudentsPage = () => {
                                   <span style={{ direction: 'ltr', color: 'var(--text-muted)' }}>{sec.startTime} - {sec.endTime}</span>
                                   <span style={{ color: 'var(--text-muted)' }}>{sec.instructor?.name || sec.instructorName || ''}</span>
                                   <span style={{ color: 'var(--text-muted)' }}>{sec.room?.name || sec.roomName || ''}</span>
+                                  <LearningTypeBadge value={sec.room?.learningType || sec.roomLearningType} />
                                   <span>
                                     {result === 'PASS' && <span className="badge success" style={{ fontSize: '0.7rem' }}>ناجح</span>}
                                     {result === 'FAIL' && <span className="badge danger" style={{ fontSize: '0.7rem' }}>راسب</span>}
@@ -2052,6 +2013,7 @@ export const StudentsPage = () => {
                       <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{sec.courseName}</div>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 4 }}>
                         شعبة: {sec.name || '-'} | {sec.instructorName} | {sec.roomName} | {sec.days?.join(' - ')} {sec.startTime}-{sec.endTime}
+                        <span style={{ marginRight: 8 }}><LearningTypeBadge value={sec.roomLearningType || sec.room?.learningType} /></span>
                         {sec.hasConflict && <span style={{ color: 'var(--danger)', marginRight: 10 }}>⚠️ تعارض</span>}
                       </div>
                     </div>

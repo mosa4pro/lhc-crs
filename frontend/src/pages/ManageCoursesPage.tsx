@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Save, Plus, BookOpen, Search, Trash2, X, Pencil, DollarSign, Clock, AlertCircle, Building2, Layers, Settings2 } from 'lucide-react';
+import { Save, Plus, BookOpen, Search, Trash2, X, Pencil, DollarSign, Clock, AlertCircle, Building2, Layers, Settings2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
+import { ViewToggleButton } from '../components/ViewToggleButton';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -48,6 +49,7 @@ export const ManageCoursesPage = () => {
   const [editingStatus, setEditingStatus] = useState('');
   const [splitPos, setSplitPos] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
+  const [showList, setShowList] = useState(true);
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [editingCat, setEditingCat] = useState<CourseCategory | null>(null);
   const [catForm, setCatForm] = useState({ name: '', nameAr: '' });
@@ -262,13 +264,27 @@ export const ManageCoursesPage = () => {
         </div>
       </div>
 
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <BookOpen size={18} color="var(--primary)" />
+          {editingCourse ? 'تعديل دورة تدريبية' : 'إضافة دورة تدريبية'}
+        </span>
+        <ViewToggleButton
+          active={showList}
+          onClick={() => setShowList(v => !v)}
+          icon={showList ? <BookOpen size={16} /> : <EyeOff size={16} />}
+          label={showList ? 'قائمة الدورات' : 'إظهار القائمة'}
+          title={showList ? 'إخفاء قائمة الدورات' : 'إظهار قائمة الدورات'}
+        />
+      </div>
+
       <div ref={containerRef} style={{
         display: 'flex', gap: 0, alignItems: 'flex-start', position: 'relative',
         userSelect: isDragging ? 'none' : undefined,
         cursor: isDragging ? 'col-resize' : undefined
       }}>
         {/* ═══ RIGHT: Form ═══ */}
-        <div style={{ width: `${splitPos}%`, flexShrink: 0, paddingLeft: '12px' }}>
+        <div style={{ width: showList ? `${splitPos}%` : '100%', flexShrink: 0, paddingLeft: showList ? '12px' : 0, transition: 'width 0.3s ease' }}>
           <div className="glass-panel">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
               <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -382,6 +398,7 @@ export const ManageCoursesPage = () => {
         </div>
 
         {/* ═══ Draggable Divider ═══ */}
+        {showList && (
         <div onMouseDown={handleSplitMouseDown} onTouchStart={handleSplitMouseDown} style={{
           width: '10px', flexShrink: 0, cursor: 'col-resize',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -406,9 +423,10 @@ export const ManageCoursesPage = () => {
             </div>
           </div>
         </div>
+        )}
 
         {/* ═══ LEFT: Search & List ═══ */}
-        <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
+        <div style={{ flex: 1, minWidth: 0, paddingRight: '12px', display: showList ? undefined : 'none' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div className="glass-panel">
               <h3 style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>

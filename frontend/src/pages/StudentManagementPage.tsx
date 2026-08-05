@@ -9,6 +9,7 @@ import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { DeepSearchModal, type DeepSearchFilters } from '../components/DeepSearchModal';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { LearningTypeBadge } from '../components/LearningTypeBadge';
 import { STUDENT_STATUS_MAP } from '../utils/constants';
 
 interface StudentSection {
@@ -590,6 +591,7 @@ export const StudentManagementPage = () => {
                                       </div>
                                       <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{sec.instructor?.name || sec.instructorName || ''}</span>
                                       <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{sec.room?.name || sec.roomName || ''}</span>
+                                      <LearningTypeBadge value={sec.room?.learningType || sec.roomLearningType} />
                                     </div>
                                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                       {res === 'PASS' ? <span className="badge success" style={{ fontSize: '0.68rem' }}>✅ ناجح</span> :
@@ -720,6 +722,7 @@ export const StudentManagementPage = () => {
                         <span>📚 شعبة: {sec.name || '-'}</span>
                         <span>👨‍🏫 {sec.instructorName}</span>
                         <span>🏠 {sec.roomName}</span>
+                        <LearningTypeBadge value={sec.roomLearningType || sec.room?.learningType} />
                         <span>📅 {sec.days?.join(' - ')}</span>
                         <span>🕐 {sec.startTime}-{sec.endTime}</span>
                         <span>👥 {sec.enrolledCount}/{sec.capacity}</span>

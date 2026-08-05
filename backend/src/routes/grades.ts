@@ -277,7 +277,7 @@ router.get('/admin/student-sections', authMiddleware, requirePermission('student
     if (!studentId) return res.status(400).json({ error: 'studentId query parameter is required' });
     const sections = await prisma.studentSection.findMany({
       where: { studentId: studentId as string },
-      include: { section: { include: { course: true } } },
+      include: { section: { include: { course: true, room: true } } },
       orderBy: { enrollDate: 'asc' }
     });
     return res.json(sections);
@@ -343,6 +343,7 @@ router.get('/admin/search', authMiddleware, requirePermission('students.view'), 
           include: {
             course: { include: { category: true } },
             instructor: true,
+            room: true,
           }
         }
       },

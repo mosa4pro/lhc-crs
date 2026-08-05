@@ -47,6 +47,8 @@ const COLUMN_DEFS: Record<string, { field: string; label: string; table: string;
     { group: 'المحاضر', field: 'instructor.name', label: 'اسم المحاضر', table: 'ins', sql: 'ins.name' },
     // Room
     { group: 'القاعة', field: 'room.name', label: 'اسم القاعة', table: 'r', sql: 'r.name' },
+    { group: 'القاعة', field: 'room.learningType', label: 'مكان الانعقاد', table: 'r', sql: 'r."learningType"' },
+    { group: 'القاعة', field: 'room.address', label: 'عنوان القاعة', table: 'r', sql: 'r.address' },
     // Grade
     { group: 'العلامات', field: 'grade.grade', label: 'العلامة', table: 'ss', sql: 'ss.grade' },
     { group: 'العلامات', field: 'grade.isProject', label: 'تسليم مشروع', table: 'ss', sql: 'ss."isProject"' },
@@ -285,6 +287,12 @@ router.post('/execute', authMiddleware, async (req, res) => {
       if (filters.sectionId) {
         whereClauses.push(`sec.id = $${paramIdx}`);
         params.push(parseInt(filters.sectionId));
+        paramIdx++;
+      }
+      // Filter by learning location
+      if (filters.learningType) {
+        whereClauses.push(`r."learningType" = $${paramIdx}`);
+        params.push(filters.learningType);
         paramIdx++;
       }
       // Filter by course ID
@@ -537,6 +545,10 @@ router.get('/filter-defs/:type', authMiddleware, async (req, res) => {
         ]},
         { group: 'البرنامج', field: 'gradeResult', label: 'نتيجة العلامات', type: 'select', options: [
           { value: '', label: 'الكل' }, { value: 'PASS', label: 'ناجح' }, { value: 'FAIL', label: 'راسب' },
+        ]},
+        { group: 'البرنامج', field: 'learningType', label: 'مكان الانعقاد', type: 'select', options: [
+          { value: '', label: 'الكل' }, { value: 'INSIDE_CENTER', label: 'داخل المركز' }, { value: 'VIRTUAL_ROOM', label: 'قاعة وهمية' },
+          { value: 'ONLINE', label: 'قاعة Online' }, { value: 'EXTERNAL_ENTITY', label: 'جهة تعلم خارجية' },
         ]},
         // الأشخاص
         { group: 'الأشخاص', field: 'instructorId', label: 'المحاضر', type: 'select', options: instructors.map(i => ({ value: String(i.id), label: i.name })) },

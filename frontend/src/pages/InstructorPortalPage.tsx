@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { LearningTypeBadge } from '../components/LearningTypeBadge';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const API = API_BASE + '/api';
@@ -319,7 +320,10 @@ export const InstructorPortalPage = () => {
                                 <td style={{ fontWeight: 700 }}>{s.course?.name}</td>
                                 <td style={{ fontSize: '0.85rem' }}>{formatDays(s.days)}</td>
                                 <td style={{ direction: 'ltr', fontSize: '0.82rem' }}>{s.startTime} – {s.endTime}</td>
-                                <td style={{ fontSize: '0.85rem' }}>{s.room?.name}</td>
+                                <td style={{ fontSize: '0.85rem' }}>
+                                  <div>{s.room?.name}</div>
+                                  <LearningTypeBadge value={s.room?.learningType} style={{ marginTop: 2 }} />
+                                </td>
                                 <td>
                                   <span className="badge primary">
                                     <Users size={12}/> {s.students?.length || 0}

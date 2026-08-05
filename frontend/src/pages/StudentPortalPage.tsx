@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { LearningTypeBadge } from '../components/LearningTypeBadge';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const API = API_BASE + '/api';
@@ -361,7 +362,10 @@ export const StudentPortalPage = () => {
                                 <td style={{ fontSize: '0.85rem' }}>{ss.section?.instructor?.name}</td>
                                 <td style={{ fontSize: '0.82rem' }}>{days.map(d => DAY_LABELS[d]).join('، ')}</td>
                                 <td style={{ direction: 'ltr', fontSize: '0.82rem' }}>{ss.section?.startTime} – {ss.section?.endTime}</td>
-                                <td style={{ fontSize: '0.82rem' }}>{ss.section?.room?.name}</td>
+                                <td style={{ fontSize: '0.82rem' }}>
+                                  <div>{ss.section?.room?.name}</div>
+                                  <LearningTypeBadge value={ss.section?.room?.learningType} style={{ marginTop: 2 }} />
+                                </td>
                                 <td><span className="badge success">مسجّل</span></td>
                               </tr>
                             );
