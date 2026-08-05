@@ -1461,13 +1461,13 @@ export const StudentsPage = () => {
         {/* Actions */}
         <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
           {(selectedStudent ? hasPermission('students.edit') : hasPermission('students.add')) && (
-            <button className="glass-btn" onClick={handleSave} disabled={isLoading}>
-              <Save size={16} />
+            <button className="glass-btn lg" onClick={handleSave} disabled={isLoading}>
+              <Save size={18} />
               {isLoading ? 'جارٍ الحفظ...' : (selectedStudent ? 'حفظ التعديلات' : 'إضافة الطالب')}
             </button>
           )}
-          <button className="glass-btn secondary" onClick={handleNew} disabled={isLoading}>
-            <RefreshCw size={16} /> جديد
+          <button className="glass-btn secondary lg" onClick={handleNew} disabled={isLoading}>
+            <RefreshCw size={18} /> جديد
           </button>
         </div>
       </div>
