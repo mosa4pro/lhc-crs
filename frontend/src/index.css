@@ -1168,6 +1168,36 @@ textarea.glass-input { resize: vertical; min-height: 80px; }
 .stat-card:hover .stat-value { color: var(--primary); }
 .stat-card .stat-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
 
+/* Compact filter select inside stat cards */
+.stat-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 12px) calc(50% - 2px), calc(100% - 16px) calc(50% - 2px);
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+  font-weight: 600;
+  cursor: pointer;
+}
+.stat-filter-select:focus { transform: translateY(0); }
+
+/* Fixed role pill for non-admin users */
+.stat-role-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+}
+
 /* =================== SEARCH BAR =================== */
 .search-bar {
   position: relative;
