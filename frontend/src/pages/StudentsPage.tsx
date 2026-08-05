@@ -347,6 +347,50 @@ const UniversitySelect = ({ value, onChange, ...rest }: { value: string; onChang
 };
 
 // ==========================================
+// View Toggle Button — professional pill toggle
+// ==========================================
+const ViewToggleButton = ({ active, onClick, icon, label, title }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; title: string }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={title}
+    aria-pressed={active}
+    style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '9px 18px', borderRadius: 12,
+      border: `1.5px solid ${active ? 'var(--primary)' : 'var(--glass-border)'}`,
+      background: active ? 'linear-gradient(135deg, var(--primary), var(--secondary))' : 'var(--card-bg)',
+      color: active ? '#fff' : 'var(--text-secondary)',
+      cursor: 'pointer', fontSize: '0.83rem', fontWeight: 700,
+      fontFamily: 'inherit', letterSpacing: '-0.01em',
+      backdropFilter: 'blur(10px)',
+      boxShadow: active ? '0 6px 18px var(--primary-glow), inset 0 1px 0 rgba(255,255,255,0.25)' : '0 2px 6px rgba(0,0,0,0.06)',
+      transition: 'all 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+      position: 'relative', overflow: 'hidden',
+    }}
+    onMouseEnter={e => {
+      if (!active) {
+        e.currentTarget.style.borderColor = 'var(--primary)';
+        e.currentTarget.style.color = 'var(--primary)';
+        e.currentTarget.style.background = 'var(--primary-light)';
+        e.currentTarget.style.transform = 'translateY(-1px)';
+      }
+    }}
+    onMouseLeave={e => {
+      if (!active) {
+        e.currentTarget.style.borderColor = 'var(--glass-border)';
+        e.currentTarget.style.color = 'var(--text-secondary)';
+        e.currentTarget.style.background = 'var(--card-bg)';
+        e.currentTarget.style.transform = 'translateY(0)';
+      }
+    }}
+  >
+    <span style={{ display: 'flex', alignItems: 'center', opacity: active ? 1 : 0.7, transition: 'opacity 0.2s' }}>{icon}</span>
+    {label}
+  </button>
+);
+
+// ==========================================
 // Helper: Parse phones from student data
 // ==========================================
 function parsePhones(student: Student): PhoneEntry[] {
@@ -926,10 +970,51 @@ export const StudentsPage = () => {
   }, [students.length]);
 
   return (
-    <div className="split-layout" ref={splitContainerRef} style={{ gap: 0, alignItems: 'stretch', minHeight: 'calc(100vh - 140px)' }}>
+    <>
+      {/* ===== VIEW CONTROL TOOLBAR (always visible) ===== */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 12, flexWrap: 'wrap', marginBottom: 16,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <Users size={18} color="var(--primary)" />
+            {selectedStudent ? (
+              <>تعديل بيانات: <span style={{ color: 'var(--primary)' }}>{selectedStudent.fullNameAr}</span></>
+            ) : 'إضافة طالب جديد'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ViewToggleButton
+            active={showStats}
+            onClick={() => setShowStats(v => !v)}
+            icon={showStats ? <Eye size={16} /> : <EyeOff size={16} />}
+            label="الكروت الإحصائية"
+            title={showStats ? 'إخفاء الكروت الإحصائية' : 'إظهار الكروت الإحصائية'}
+          />
+          <ViewToggleButton
+            active={showList}
+            onClick={() => setShowList(v => !v)}
+            icon={showList ? <Users size={16} /> : <EyeOff size={16} />}
+            label="قائمة الطلاب"
+            title={showList ? 'إخفاء قائمة الطلاب وتوسيع الفورم' : 'إظهار قائمة الطلاب'}
+          />
+        </div>
+      </div>
+
+      <div className="split-layout" ref={splitContainerRef} style={{ gap: 0, alignItems: 'stretch', minHeight: 'calc(100vh - 180px)' }}>
 
       {/* ===== FORM PANEL (RIGHT in RTL — first in DOM) ===== */}
-      <div className="glass-panel split-panel" key={formVersion} style={{ flex: `0 0 ${splitPercent}%`, minWidth: 0, borderRadius: '0 var(--radius-lg) var(--radius-lg) 0', margin: 0 }}>
+      <div className="glass-panel split-panel" key={formVersion} style={{
+        flex: showList ? `0 0 ${splitPercent}%` : '1 1 100%',
+        minWidth: 0,
+        borderRadius: showList ? '0 var(--radius-lg) var(--radius-lg) 0' : 'var(--radius-lg)',
+        margin: 0,
+        transition: 'flex 0.35s ease, border-radius 0.35s ease',
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10, fontSize: '1.1rem' }}>
             <Users size={22} color="var(--secondary)" />
@@ -1387,7 +1472,8 @@ export const StudentsPage = () => {
         </div>
       </div>
 
-      {/* ===== RESIZABLE DIVIDER ===== */}
+      {/* ===== RESIZABLE DIVIDER (hidden when list is collapsed) ===== */}
+      {showList && (
       <div
         className={`split-divider ${isDragging ? 'active' : ''}`}
         onMouseDown={handleDividerMouseDown}
@@ -1403,9 +1489,16 @@ export const StudentsPage = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* ===== STUDENTS TABLE (LEFT in RTL — second in DOM) ===== */}
-      <div className="glass-panel split-panel" style={{ flex: 1, minWidth: 0, borderRadius: 'var(--radius-lg) 0 0 var(--radius-lg)', margin: 0 }}>
+      <div className="glass-panel split-panel" style={{
+        flex: 1,
+        minWidth: 0,
+        display: showList ? undefined : 'none',
+        borderRadius: showList ? 'var(--radius-lg) 0 0 var(--radius-lg)' : 'var(--radius-lg)',
+        margin: 0,
+      }}>
         {/* ===== ALL STAT CARDS — unified, premium ===== */}
         <div style={{
           display: 'grid',
@@ -1518,24 +1611,6 @@ export const StudentsPage = () => {
           </h3>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Toggle stat cards */}
-            <button
-              className={`glass-btn icon-btn ${!showStats ? 'active-filter' : ''}`}
-              onClick={() => setShowStats(v => !v)}
-              title={showStats ? 'إخفاء الكروت الإحصائية' : 'إظهار الكروت الإحصائية'}
-              style={!showStats ? { boxShadow: '0 0 0 2px var(--primary)', color: 'var(--primary)' } : {}}
-            >
-              {showStats ? <Eye size={18} /> : <EyeOff size={18} />}
-            </button>
-            {/* Toggle students list */}
-            <button
-              className={`glass-btn icon-btn ${!showList ? 'active-filter' : ''}`}
-              onClick={() => setShowList(v => !v)}
-              title={showList ? 'إخفاء قائمة الطلاب' : 'إظهار قائمة الطلاب'}
-              style={!showList ? { boxShadow: '0 0 0 2px var(--primary)', color: 'var(--primary)' } : {}}
-            >
-              {showList ? <Users size={18} /> : <EyeOff size={18} />}
-            </button>
             {/* Simple Search */}
             <div style={{ position: 'relative', width: 220 }}>
               <Search size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none', zIndex: 1 }} />
@@ -2031,6 +2106,7 @@ export const StudentsPage = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
