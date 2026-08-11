@@ -189,7 +189,8 @@ model Room {
   address  String?
   building  String?
   floor     String?
-  learningType String @default("INSIDE_CENTER") // INSIDE_CENTER | VIRTUAL_ROOM | ONLINE | EXTERNAL_ENTITY
+  learningType String @default("INSIDE_CENTER") // مكان الانعقاد: INSIDE_CENTER | EXTERNAL_ENTITY
+  modality String @default("PHYSICAL") // نوع القاعة: PHYSICAL | VIRTUAL_ROOM | ONLINE
   hasProjector Boolean @default(false)
   hasAC        Boolean @default(false)
   notes     String?

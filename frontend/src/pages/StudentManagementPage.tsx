@@ -591,7 +591,7 @@ export const StudentManagementPage = () => {
                                       </div>
                                       <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{sec.instructor?.name || sec.instructorName || ''}</span>
                                       <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{sec.room?.name || sec.roomName || ''}</span>
-                                      <LearningTypeBadge value={sec.room?.learningType || sec.roomLearningType} />
+                                      <LearningTypeBadge room={sec.room} value={sec.roomLearningType} modality={sec.roomModality} entityName={sec.roomEntityName} />
                                     </div>
                                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                       {res === 'PASS' ? <span className="badge success" style={{ fontSize: '0.68rem' }}>✅ ناجح</span> :
@@ -722,7 +722,7 @@ export const StudentManagementPage = () => {
                         <span>📚 شعبة: {sec.name || '-'}</span>
                         <span>👨‍🏫 {sec.instructorName}</span>
                         <span>🏠 {sec.roomName}</span>
-                        <LearningTypeBadge value={sec.roomLearningType || sec.room?.learningType} />
+                        <LearningTypeBadge room={sec.room} value={sec.roomLearningType} modality={sec.roomModality} entityName={sec.roomEntityName} />
                         <span>📅 {sec.days?.join(' - ')}</span>
                         <span>🕐 {sec.startTime}-{sec.endTime}</span>
                         <span>👥 {sec.enrolledCount}/{sec.capacity}</span>

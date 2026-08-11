@@ -1850,7 +1850,7 @@ export const StudentsPage = () => {
                                   <span style={{ direction: 'ltr', color: 'var(--text-muted)' }}>{sec.startTime} - {sec.endTime}</span>
                                   <span style={{ color: 'var(--text-muted)' }}>{sec.instructor?.name || sec.instructorName || ''}</span>
                                   <span style={{ color: 'var(--text-muted)' }}>{sec.room?.name || sec.roomName || ''}</span>
-                                  <LearningTypeBadge value={sec.room?.learningType || sec.roomLearningType} />
+                                  <LearningTypeBadge room={sec.room} value={sec.roomLearningType} modality={sec.roomModality} entityName={sec.roomEntityName} />
                                   <span>
                                     {result === 'PASS' && <span className="badge success" style={{ fontSize: '0.7rem' }}>ناجح</span>}
                                     {result === 'FAIL' && <span className="badge danger" style={{ fontSize: '0.7rem' }}>راسب</span>}
@@ -2013,7 +2013,7 @@ export const StudentsPage = () => {
                       <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{sec.courseName}</div>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 4 }}>
                         شعبة: {sec.name || '-'} | {sec.instructorName} | {sec.roomName} | {sec.days?.join(' - ')} {sec.startTime}-{sec.endTime}
-                        <span style={{ marginRight: 8 }}><LearningTypeBadge value={sec.roomLearningType || sec.room?.learningType} /></span>
+                        <span style={{ marginRight: 8 }}><LearningTypeBadge room={sec.room} value={sec.roomLearningType} modality={sec.roomModality} entityName={sec.roomEntityName} /></span>
                         {sec.hasConflict && <span style={{ color: 'var(--danger)', marginRight: 10 }}>⚠️ تعارض</span>}
                       </div>
                     </div>

@@ -47,7 +47,8 @@ const COLUMN_DEFS: Record<string, { field: string; label: string; table: string;
     { group: 'المحاضر', field: 'instructor.name', label: 'اسم المحاضر', table: 'ins', sql: 'ins.name' },
     // Room
     { group: 'القاعة', field: 'room.name', label: 'اسم القاعة', table: 'r', sql: 'r.name' },
-    { group: 'القاعة', field: 'room.learningType', label: 'مكان الانعقاد', table: 'r', sql: 'r."learningType"' },
+    { group: 'القاعة', field: 'room.learningType', label: 'جهة الانعقاد', table: 'r', sql: 'r."learningType"' },
+    { group: 'القاعة', field: 'room.modality', label: 'نوع القاعة', table: 'r', sql: 'r.modality' },
     { group: 'القاعة', field: 'room.address', label: 'عنوان القاعة', table: 'r', sql: 'r.address' },
     // Grade
     { group: 'العلامات', field: 'grade.grade', label: 'العلامة', table: 'ss', sql: 'ss.grade' },
@@ -293,6 +294,12 @@ router.post('/execute', authMiddleware, async (req, res) => {
       if (filters.learningType) {
         whereClauses.push(`r."learningType" = $${paramIdx}`);
         params.push(filters.learningType);
+        paramIdx++;
+      }
+      // Filter by room modality
+      if (filters.modality) {
+        whereClauses.push(`r.modality = $${paramIdx}`);
+        params.push(filters.modality);
         paramIdx++;
       }
       // Filter by course ID
@@ -546,9 +553,12 @@ router.get('/filter-defs/:type', authMiddleware, async (req, res) => {
         { group: 'البرنامج', field: 'gradeResult', label: 'نتيجة العلامات', type: 'select', options: [
           { value: '', label: 'الكل' }, { value: 'PASS', label: 'ناجح' }, { value: 'FAIL', label: 'راسب' },
         ]},
-        { group: 'البرنامج', field: 'learningType', label: 'مكان الانعقاد', type: 'select', options: [
-          { value: '', label: 'الكل' }, { value: 'INSIDE_CENTER', label: 'داخل المركز' }, { value: 'VIRTUAL_ROOM', label: 'قاعة وهمية' },
-          { value: 'ONLINE', label: 'قاعة Online' }, { value: 'EXTERNAL_ENTITY', label: 'جهة تعلم خارجية' },
+        { group: 'البرنامج', field: 'learningType', label: 'جهة الانعقاد', type: 'select', options: [
+          { value: '', label: 'الكل' }, { value: 'INSIDE_CENTER', label: 'داخل المركز' }, { value: 'EXTERNAL_ENTITY', label: 'جهة تعلم خارجية' },
+        ]},
+        { group: 'البرنامج', field: 'modality', label: 'نوع القاعة', type: 'select', options: [
+          { value: '', label: 'الكل' }, { value: 'PHYSICAL', label: 'حضوري' }, { value: 'VIRTUAL_ROOM', label: 'قاعة وهمية' },
+          { value: 'ONLINE', label: 'قاعة Online' },
         ]},
         // الأشخاص
         { group: 'الأشخاص', field: 'instructorId', label: 'المحاضر', type: 'select', options: instructors.map(i => ({ value: String(i.id), label: i.name })) },

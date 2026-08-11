@@ -53,7 +53,7 @@ router.get('/', authMiddleware, requirePermission('sections.manage'), async (req
     const sections = await prisma.section.findMany({
       where,
       include: {
-        course: { include: { category: true } }, room: true, instructor: true,
+        course: { include: { category: true } }, room: { include: { entity: true } }, instructor: true,
         _count: { select: { students: true } }
       },
       orderBy: { createdAt: 'desc' }
@@ -67,7 +67,7 @@ router.get('/:id', authMiddleware, requirePermission('sections.manage'), async (
     const section = await prisma.section.findUnique({
       where: { id: parseInt(req.params.id as string) },
       include: {
-        course: true, room: true, instructor: true,
+        course: true, room: { include: { entity: true } }, instructor: true,
         students: { include: { student: true } },
         attendances: { orderBy: { date: 'desc' }, take: 100 }
       }
@@ -376,7 +376,7 @@ router.get('/students/:studentId/enrolled-sections', authMiddleware, requirePerm
     const studentId = req.params.studentId as string;
     const records = await prisma.studentSection.findMany({
       where: { studentId, status: 'ENROLLED', section: { status: 'OPEN' } },
-      include: { section: { include: { course: true, instructor: true, room: true } } }
+      include: { section: { include: { course: true, instructor: true, room: { include: { entity: true } } } } }
     });
     res.json(records.map(ss => ({
       id: ss.section.id,
@@ -389,6 +389,8 @@ router.get('/students/:studentId/enrolled-sections', authMiddleware, requirePerm
       instructorName: ss.section.instructor?.name || '',
       roomName: ss.section.room?.name || '',
       roomLearningType: ss.section.room?.learningType || null,
+      roomModality: ss.section.room?.modality || null,
+      roomEntityName: ss.section.room?.entity?.name || '',
       roomAddress: ss.section.room?.address || '',
       startDate: ss.section.startDate,
       endDate: ss.section.endDate,
@@ -510,8 +512,8 @@ router.get('/students/:studentId/transfer-log', authMiddleware, requirePermissio
     const logs = await prisma.transferLog.findMany({
       where: { studentId },
       include: {
-        fromSection: { include: { course: true, instructor: true, room: true } },
-        toSection: { include: { course: true, instructor: true, room: true } },
+        fromSection: { include: { course: true, instructor: true, room: { include: { entity: true } } } },
+        toSection: { include: { course: true, instructor: true, room: { include: { entity: true } } } },
       },
       orderBy: { transferredAt: 'desc' }
     });
@@ -528,6 +530,8 @@ router.get('/students/:studentId/transfer-log', authMiddleware, requirePermissio
         instructorName: log.fromSection.instructor?.name || '',
         roomName: log.fromSection.room?.name || '',
         roomLearningType: log.fromSection.room?.learningType || null,
+        roomModality: log.fromSection.room?.modality || null,
+        roomEntityName: log.fromSection.room?.entity?.name || '',
       },
       to: {
         id: log.toSection.id,
@@ -539,6 +543,8 @@ router.get('/students/:studentId/transfer-log', authMiddleware, requirePermissio
         instructorName: log.toSection.instructor?.name || '',
         roomName: log.toSection.room?.name || '',
         roomLearningType: log.toSection.room?.learningType || null,
+        roomModality: log.toSection.room?.modality || null,
+        roomEntityName: log.toSection.room?.entity?.name || '',
       },
     })));
   } catch {

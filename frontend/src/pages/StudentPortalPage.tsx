@@ -364,7 +364,7 @@ export const StudentPortalPage = () => {
                                 <td style={{ direction: 'ltr', fontSize: '0.82rem' }}>{ss.section?.startTime} – {ss.section?.endTime}</td>
                                 <td style={{ fontSize: '0.82rem' }}>
                                   <div>{ss.section?.room?.name}</div>
-                                  <LearningTypeBadge value={ss.section?.room?.learningType} style={{ marginTop: 2 }} />
+                                  <LearningTypeBadge room={ss.section?.room} style={{ marginTop: 2 }} />
                                 </td>
                                 <td><span className="badge success">مسجّل</span></td>
                               </tr>

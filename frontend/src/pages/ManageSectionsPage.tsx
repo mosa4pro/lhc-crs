@@ -7,7 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { LearningTypeBadge, LEARNING_TYPES, learningTypeLabel } from '../components/LearningTypeBadge';
+import { LearningTypeBadge, LEARNING_TYPES, MODALITIES, modalityLabel } from '../components/LearningTypeBadge';
 import { formatDate } from '../utils/dateFormat';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -18,7 +18,7 @@ interface Section {
   name?: string;
   course?: { id: string; name: string; categoryId?: number };
   courseId: string;
-  room?: { id: string; name: string; entity?: { name: string }; learningType?: string };
+  room?: { id: string; name: string; entity?: { name: string }; learningType?: string; modality?: string };
   instructor?: { id: string; name: string };
   days: string;
   startTime: string;
@@ -74,6 +74,7 @@ export const ManageSectionsPage = () => {
   const [filterCategoryId, setFilterCategoryId] = useState('');
   const [filterCourseId, setFilterCourseId] = useState('');
   const [filterLearningType, setFilterLearningType] = useState('');
+  const [filterModality, setFilterModality] = useState('');
 
   const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery]         = useState('');
@@ -241,6 +242,7 @@ export const ManageSectionsPage = () => {
     if (filterCategoryId && s.course?.categoryId !== Number(filterCategoryId)) return false;
     if (filterDiplomaId && !diplomaCourseIds.has(s.courseId)) return false;
     if (filterLearningType && s.room?.learningType !== filterLearningType) return false;
+    if (filterModality && (s.room?.modality || 'PHYSICAL') !== filterModality) return false;
     return true;
   });
 
@@ -304,11 +306,19 @@ export const ManageSectionsPage = () => {
             </select>
           </div>
           <div className="form-group" style={{ margin: 0, minWidth: 160, flex: 1 }}>
-            <label className="form-label" style={{ fontSize: '0.72rem' }}>مكان الانعقاد</label>
+            <label className="form-label" style={{ fontSize: '0.72rem' }}>جهة الانعقاد</label>
             <select className="glass-input" value={filterLearningType}
               onChange={e => setFilterLearningType(e.target.value)}>
               <option value="">— الكل —</option>
               {Object.entries(LEARNING_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{ margin: 0, minWidth: 160, flex: 1 }}>
+            <label className="form-label" style={{ fontSize: '0.72rem' }}>نوع القاعة</label>
+            <select className="glass-input" value={filterModality}
+              onChange={e => setFilterModality(e.target.value)}>
+              <option value="">— الكل —</option>
+              {Object.entries(MODALITIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </div>
           <div className="search-bar" style={{ flex: 2, minWidth: 200, position: 'relative' }}>
@@ -375,7 +385,7 @@ export const ManageSectionsPage = () => {
                   </div>
                   {s.room?.learningType && (
                     <div style={{ marginTop: 4 }}>
-                      <LearningTypeBadge value={s.room.learningType} />
+                      <LearningTypeBadge room={s.room} />
                     </div>
                   )}
                   {s.room?.entity && (
@@ -525,7 +535,7 @@ export const ManageSectionsPage = () => {
                   <select required className="glass-input" value={formData.roomId}
                     onChange={e => setFormData({ ...formData, roomId: e.target.value })}>
                     <option value="">-- اختر القاعة --</option>
-                    {rooms.map(r => <option key={r.id} value={r.id}>{r.name}{r.entity ? ` — ${r.entity.name}` : ''}{r.learningType ? ` (${learningTypeLabel(r.learningType)})` : ''}</option>)}
+                    {rooms.map(r => <option key={r.id} value={r.id}>{r.name}{r.entity ? ` — ${r.entity.name}` : ''}{r.learningType === 'EXTERNAL_ENTITY' && !r.entity ? ' — جهة تعلم خارجية' : ''}{r.modality && r.modality !== 'PHYSICAL' ? ` (${modalityLabel(r.modality)})` : ''}</option>)}
                   </select>
                 </div>
 

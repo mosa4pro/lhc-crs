@@ -19,7 +19,7 @@ router.get('/sections', authMiddleware, async (req, res) => {
         where: Object.keys(where).length > 0 ? where : undefined,
         include: {
           course: { include: { category: true } },
-          room: true,
+          room: { include: { entity: true } },
           instructor: true,
           _count: { select: { students: true } }
         },
@@ -32,7 +32,7 @@ router.get('/sections', authMiddleware, async (req, res) => {
         where: { ...where, instructorId: instructor.id },
         include: {
           course: { include: { category: true } },
-          room: true,
+          room: { include: { entity: true } },
           instructor: true,
           _count: { select: { students: true } }
         },
@@ -277,7 +277,7 @@ router.get('/admin/student-sections', authMiddleware, requirePermission('student
     if (!studentId) return res.status(400).json({ error: 'studentId query parameter is required' });
     const sections = await prisma.studentSection.findMany({
       where: { studentId: studentId as string },
-      include: { section: { include: { course: true, room: true } } },
+      include: { section: { include: { course: true, room: { include: { entity: true } } } } },
       orderBy: { enrollDate: 'asc' }
     });
     return res.json(sections);
@@ -343,7 +343,7 @@ router.get('/admin/search', authMiddleware, requirePermission('students.view'), 
           include: {
             course: { include: { category: true } },
             instructor: true,
-            room: true,
+            room: { include: { entity: true } },
           }
         }
       },

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Search, User, FileText, Calendar, CreditCard, GraduationCap, Printer, Filter, Image, MessageCircle } from 'lucide-react';
 import { useApi, useAuth, fileUrl } from '../context/AuthContext';
 import { DeepSearchModal } from '../components/DeepSearchModal';
-import { LearningTypeBadge, learningTypeLabel } from '../components/LearningTypeBadge';
+import { LearningTypeBadge, learningTypeLabel, modalityLabel } from '../components/LearningTypeBadge';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useChat } from '../context/ChatContext';
 import { useSearchParams } from 'react-router-dom';
@@ -146,7 +146,7 @@ export const StudentProfilePage = () => {
         return td ? fmtDate(td) : isCur ? 'الآن' : '—';
       };
       html += `<div class="section"><h4>الجدول الدراسي</h4><table><thead><tr><th>المادة</th><th>رقم الشعبة</th><th>الأيام</th><th>الوقت</th><th>القاعة</th><th>المدرب</th></tr></thead><tbody>`;
-      secs.forEach((item: any) => { const sec = secToDisplay(item); const room = sec.room?.name || '—'; const lt = sec.room?.learningType ? ` (${learningTypeLabel(sec.room?.learningType)})` : ''; html += `<tr><td>${sec.course?.name || sec.diploma?.name || '—'}</td><td>${sec.name || '—'}</td><td>${formatDays(sec.days)}</td><td>${sec.startTime && sec.endTime ? sec.startTime + ' - ' + sec.endTime : '—'}</td><td>${room}${lt}</td><td>${sec.instructor?.name || '—'}</td></tr>`; });
+      secs.forEach((item: any) => { const sec = secToDisplay(item); const room = sec.room?.name || '—'; const ltParts: string[] = []; const lt = sec.room?.learningType; const loc = learningTypeLabel(lt); const en = sec.room?.entity?.name; if (lt === 'EXTERNAL_ENTITY') ltParts.push(en || 'جهة تعلم خارجية'); else ltParts.push(loc); const mod = sec.room?.modality; if (mod && mod !== 'PHYSICAL') ltParts.push(modalityLabel(mod)); html += `<tr><td>${sec.course?.name || sec.diploma?.name || '—'}</td><td>${sec.name || '—'}</td><td>${formatDays(sec.days)}</td><td>${sec.startTime && sec.endTime ? sec.startTime + ' - ' + sec.endTime : '—'}</td><td>${room}${ltParts.length ? ' (' + ltParts.join('، ') + ')' : ''}</td><td>${sec.instructor?.name || '—'}</td></tr>`; });
       html += `</tbody></table></div>`; }
     }
     const printSubs = [
@@ -371,7 +371,7 @@ export const StudentProfilePage = () => {
                         <td style={tdStyle}>{sec.startTime && sec.endTime ? `${sec.startTime} - ${sec.endTime}` : '—'}</td>
                       <td style={tdStyle}>
                         <div>{sec.room?.name || '—'}</div>
-                        <LearningTypeBadge value={sec.room?.learningType} style={{ marginTop: 2 }} />
+                        <LearningTypeBadge room={sec.room} style={{ marginTop: 2 }} />
                       </td>
                       <td style={tdStyle}>{sec.instructor?.name || '—'}</td>
                       </tr>

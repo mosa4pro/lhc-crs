@@ -521,7 +521,7 @@ export const AddToSectionPage = () => {
                 <span>المسجلون: <strong style={{ color: enrolledIds.size >= activeSection.capacity ? 'var(--danger)' : 'var(--success)' }}>{enrolledIds.size}/{activeSection.capacity}</strong></span>
                 <span>المواعيد: <strong>{formatSchedule(activeSection)}</strong></span>
                 <span>القاعة: <strong>{activeSection.room?.name || activeSection.roomName || '—'}</strong></span>
-                <LearningTypeBadge value={activeSection.room?.learningType || activeSection.roomLearningType} />
+                <LearningTypeBadge room={activeSection.room} value={activeSection.roomLearningType} modality={activeSection.roomModality} entityName={activeSection.roomEntityName} />
               </div>
             </div>
           )}
@@ -589,7 +589,7 @@ export const AddToSectionPage = () => {
                                               <td>{sec.instructorName || '—'}</td>
                                               <td>
                                                 <div>{sec.roomName || '—'}</div>
-                                                <LearningTypeBadge value={sec.roomLearningType || sec.room?.learningType} style={{ marginTop: 2 }} />
+                                                <LearningTypeBadge room={sec.room} value={sec.roomLearningType} modality={sec.roomModality} entityName={sec.roomEntityName} style={{ marginTop: 2 }} />
                                               </td>
                                             </tr>
                                           ))}
@@ -662,7 +662,7 @@ export const AddToSectionPage = () => {
                                               <td>{sec.instructorName || '—'}</td>
                                               <td>
                                                 <div>{sec.roomName || '—'}</div>
-                                                <LearningTypeBadge value={sec.roomLearningType || sec.room?.learningType} style={{ marginTop: 2 }} />
+                                                <LearningTypeBadge room={sec.room} value={sec.roomLearningType} modality={sec.roomModality} entityName={sec.roomEntityName} style={{ marginTop: 2 }} />
                                               </td>
                                             </tr>
                                           ))}
@@ -789,7 +789,7 @@ export const AddToSectionPage = () => {
                             <td style={{ fontSize: '0.85rem' }}>{sec.instructorName || '—'}</td>
                             <td style={{ fontSize: '0.85rem' }}>
                               <div>{sec.roomName || '—'}</div>
-                              <LearningTypeBadge value={sec.roomLearningType || sec.room?.learningType} style={{ marginTop: 2 }} />
+                              <LearningTypeBadge room={sec.room} value={sec.roomLearningType} modality={sec.roomModality} entityName={sec.roomEntityName} style={{ marginTop: 2 }} />
                             </td>
                             <td>
                               <button className="glass-btn sm danger" onClick={() => handleWithdraw(sec.id)} disabled={withdrawing === sec.id}>
@@ -841,7 +841,7 @@ export const AddToSectionPage = () => {
                             </div>
                             <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                               {log.from.instructorName} | {log.from.roomName}
-                              <LearningTypeBadge value={log.from.roomLearningType} style={{ marginRight: 6 }} />
+                              <LearningTypeBadge value={log.from.roomLearningType} modality={log.from.roomModality} entityName={log.from.roomEntityName} style={{ marginRight: 6 }} />
                             </div>
                           </div>
                           {/* Arrow */}
@@ -859,7 +859,7 @@ export const AddToSectionPage = () => {
                             </div>
                             <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                               {log.to.instructorName} | {log.to.roomName}
-                              <LearningTypeBadge value={log.to.roomLearningType} style={{ marginRight: 6 }} />
+                              <LearningTypeBadge value={log.to.roomLearningType} modality={log.to.roomModality} entityName={log.to.roomEntityName} style={{ marginRight: 6 }} />
                             </div>
                           </div>
                         </div>
@@ -895,7 +895,7 @@ export const AddToSectionPage = () => {
                             <td style={{ fontSize: '0.85rem' }}>{sec.instructorName || '—'}</td>
                             <td style={{ fontSize: '0.85rem' }}>
                               <div>{sec.roomName || '—'}</div>
-                              <LearningTypeBadge value={sec.roomLearningType || sec.room?.learningType} style={{ marginTop: 2 }} />
+                              <LearningTypeBadge room={sec.room} value={sec.roomLearningType} modality={sec.roomModality} entityName={sec.roomEntityName} style={{ marginTop: 2 }} />
                             </td>
                             <td style={{ fontSize: '0.82rem', textAlign: 'center' }}>
                               <span style={{ color: sec.enrolledCount >= sec.capacity ? 'var(--danger)' : 'var(--success)' }}>
@@ -1021,7 +1021,7 @@ export const AddToSectionPage = () => {
                               <td style={{ fontSize: '0.85rem' }}>{sec.instructorName || '—'}</td>
                               <td style={{ fontSize: '0.85rem' }}>
                                 <div>{sec.roomName || '—'}</div>
-                                <LearningTypeBadge value={sec.roomLearningType || sec.room?.learningType} style={{ marginTop: 2 }} />
+                                <LearningTypeBadge room={sec.room} value={sec.roomLearningType} modality={sec.roomModality} entityName={sec.roomEntityName} style={{ marginTop: 2 }} />
                               </td>
                               <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{sec.enrollDate ? formatDate(sec.enrollDate) : '—'}</td>
                               <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{sec.endDate && new Date(sec.endDate) <= new Date() ? formatDate(sec.endDate) : 'إلى الآن'}</td>
@@ -1106,7 +1106,7 @@ export const AddToSectionPage = () => {
                             <span>📚 شعبة: {sec.name || '-'}</span>
                             <span>👨‍🏫 {sec.instructorName}</span>
                             <span>🏠 {sec.roomName}</span>
-                            <LearningTypeBadge value={sec.roomLearningType || sec.room?.learningType} />
+                            <LearningTypeBadge room={sec.room} value={sec.roomLearningType} modality={sec.roomModality} entityName={sec.roomEntityName} />
                             <span>📅 {sec.startDate ? `${formatDate(sec.startDate)}` : '-'} → {sec.endDate && new Date(sec.endDate) <= new Date() ? formatDate(sec.endDate) : 'الآن'}</span>
                             <span>📅 {sec.days ? formatSchedule(sec) : '-'}</span>
                             <span>👥 {sec.enrolledCount}/{sec.capacity}</span>

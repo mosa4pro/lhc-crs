@@ -21,6 +21,7 @@ router.post('/', authMiddleware, requirePermission('admin.rooms'), async (req, r
       capacity: parseInt(req.body.capacity) || 30,
       costType: req.body.costType || 'FIXED',
       learningType: req.body.learningType || 'INSIDE_CENTER',
+      modality: req.body.modality || 'PHYSICAL',
       address: req.body.address || null,
       entityId: req.body.entityId ? parseInt(req.body.entityId) : null,
       building: req.body.building || null,
@@ -53,6 +54,7 @@ router.put('/:id', authMiddleware, requirePermission('admin.rooms'), async (req,
     if (req.body.capacity !== undefined) data.capacity = parseInt(req.body.capacity) || 30;
     if (req.body.costType !== undefined) data.costType = req.body.costType;
     if (req.body.learningType !== undefined) data.learningType = req.body.learningType;
+    if (req.body.modality !== undefined) data.modality = req.body.modality;
     if (req.body.address !== undefined) data.address = req.body.address;
     if (req.body.entityId !== undefined) data.entityId = req.body.entityId ? parseInt(req.body.entityId) : null;
     if (req.body.building !== undefined) data.building = req.body.building;

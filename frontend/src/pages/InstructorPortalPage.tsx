@@ -322,7 +322,7 @@ export const InstructorPortalPage = () => {
                                 <td style={{ direction: 'ltr', fontSize: '0.82rem' }}>{s.startTime} – {s.endTime}</td>
                                 <td style={{ fontSize: '0.85rem' }}>
                                   <div>{s.room?.name}</div>
-                                  <LearningTypeBadge value={s.room?.learningType} style={{ marginTop: 2 }} />
+                                  <LearningTypeBadge room={s.room} style={{ marginTop: 2 }} />
                                 </td>
                                 <td>
                                   <span className="badge primary">

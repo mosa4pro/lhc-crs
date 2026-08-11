@@ -1,20 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { BedDouble, Plus, Edit2, Trash2, RefreshCw, Monitor, Users } from 'lucide-react';
+import { BedDouble, Plus, Edit2, Trash2, RefreshCw, Users } from 'lucide-react';
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { PermissionGuard } from '../components/PermissionGuard';
-import { LEARNING_TYPES } from '../components/LearningTypeBadge';
+import { LEARNING_TYPES, MODALITIES, LearningTypeBadge } from '../components/LearningTypeBadge';
 
 interface Room {
   id: string; name: string; type: string; capacity: number;
-  floor?: string; building?: string; address?: string; learningType?: string;
-  hasProjector?: boolean; hasAC?: boolean; notes?: string;
+  floor?: string; building?: string; address?: string; learningType?: string; modality?: string;
+  hasProjector?: boolean; hasAC?: boolean; notes?: string; entity?: { id: string; name: string } | null;
 }
 
 const ROOM_TYPES: Record<string, string> = {
   CLASSROOM: 'قاعة دراسية', LAB: 'مختبر', HALL: 'قاعة كبرى', OFFICE: 'مكتب', OTHER: 'أخرى'
 };
+
+const EMPTY_FORM = { name: '', type: 'CLASSROOM', capacity: 30, floor: '', building: '', address: '', learningType: 'INSIDE_CENTER', modality: 'PHYSICAL', entityId: '', hasProjector: false, hasAC: false, notes: '' };
 
 export const AdminRoomsPage = () => {
   const { apiFetch } = useApi();
@@ -24,11 +26,19 @@ export const AdminRoomsPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Room | null>(null);
-  const [form, setForm] = useState({ name: '', type: 'CLASSROOM', capacity: 30, floor: '', building: '', address: '', learningType: 'INSIDE_CENTER', hasProjector: false, hasAC: false, notes: '' });
+  const [entities, setEntities] = useState<{ id: string; name: string }[]>([]);
+  const [form, setForm] = useState(EMPTY_FORM);
 
   const load = useCallback(async () => {
     setIsLoading(true);
-    try { setRooms(await apiFetch('/rooms')); }
+    try {
+      const [rooms, ents] = await Promise.all([
+        apiFetch('/rooms'),
+        apiFetch('/educational-entities').catch(() => []),
+      ]);
+      setRooms(rooms);
+      setEntities(ents);
+    }
     catch (e) { console.error(e); }
     finally { setIsLoading(false); }
   }, []);
@@ -37,13 +47,20 @@ export const AdminRoomsPage = () => {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', type: 'CLASSROOM', capacity: 30, floor: '', building: '', address: '', learningType: 'INSIDE_CENTER', hasProjector: false, hasAC: false, notes: '' });
+    setForm(EMPTY_FORM);
     setShowModal(true);
   };
 
   const openEdit = (r: Room) => {
     setEditing(r);
-    setForm({ name: r.name, type: r.type, capacity: r.capacity, floor: r.floor || '', building: r.building || '', address: r.address || '', learningType: r.learningType || 'INSIDE_CENTER', hasProjector: !!r.hasProjector, hasAC: !!r.hasAC, notes: r.notes || '' });
+    setForm({
+      name: r.name, type: r.type, capacity: r.capacity,
+      floor: r.floor || '', building: r.building || '', address: r.address || '',
+      learningType: r.learningType === 'VIRTUAL_ROOM' || r.learningType === 'ONLINE' ? 'INSIDE_CENTER' : (r.learningType || 'INSIDE_CENTER'),
+      modality: r.learningType === 'VIRTUAL_ROOM' || r.learningType === 'ONLINE' ? r.learningType : (r.modality || 'PHYSICAL'),
+      entityId: r.entity?.id ? String(r.entity.id) : '',
+      hasProjector: !!r.hasProjector, hasAC: !!r.hasAC, notes: r.notes || ''
+    });
     setShowModal(true);
   };
 
@@ -92,7 +109,7 @@ export const AdminRoomsPage = () => {
                 <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Users size={12}/> {r.capacity} مقعد
                 </span>
-                <span className="badge" style={{ fontSize: '0.72rem', background: 'rgba(99,102,241,0.1)', color: '#818cf8' }}>{LEARNING_TYPES[r.learningType || 'INSIDE_CENTER'] || r.learningType}</span>
+                <LearningTypeBadge room={r} />
                 {r.building && <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>🏛 {r.building}</span>}
                 {r.floor && <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>📍 طابق {r.floor}</span>}
                 {r.address && <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>📍 {r.address}</span>}
@@ -125,11 +142,26 @@ export const AdminRoomsPage = () => {
                   </select>
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">نوع التعلّم</label>
-                  <select className="glass-input" value={form.learningType} onChange={e => setForm({ ...form, learningType: e.target.value })}>
+                  <label className="form-label">نوع القاعة</label>
+                  <select className="glass-input" value={form.modality} onChange={e => setForm({ ...form, modality: e.target.value })}>
+                    {Object.entries(MODALITIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">جهة القاعة</label>
+                  <select className="glass-input" value={form.learningType} onChange={e => setForm({ ...form, learningType: e.target.value, entityId: e.target.value === 'EXTERNAL_ENTITY' ? form.entityId : '' })}>
                     {Object.entries(LEARNING_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </div>
+                {form.learningType === 'EXTERNAL_ENTITY' && (
+                  <div className="form-group" style={{ margin: 0, gridColumn: '1/-1' }}>
+                    <label className="form-label">اختر جهة التعلّم <span className="required-star">*</span></label>
+                    <select className="glass-input" value={form.entityId} onChange={e => setForm({ ...form, entityId: e.target.value })}>
+                      <option value="">— اختر —</option>
+                      {entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div className="form-group" style={{ margin: 0, gridColumn: '1/-1' }}>
                   <label className="form-label">العنوان</label>
                   <input type="text" className="glass-input" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />

@@ -484,7 +484,7 @@ export const AttendancePage = () => {
               </div>
             ) : null)}
             {sectionInfo.room?.learningType && (
-              <LearningTypeBadge value={sectionInfo.room.learningType} />
+              <LearningTypeBadge room={sectionInfo.room} />
             )}
 
             {tab === 'record' && (
