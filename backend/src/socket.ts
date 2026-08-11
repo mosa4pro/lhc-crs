@@ -2,6 +2,7 @@ import { Server as HTTPServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { prisma } from './index.js';
+import { corsOrigins } from './config/env.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ems-super-secret-2026';
 
@@ -10,7 +11,7 @@ const onlineUsers = new Map<number, { sockets: Set<string>; lastSeen?: Date }>()
 export function setupSocket(httpServer: HTTPServer) {
   const io = new Server(httpServer, {
     cors: {
-      origin: ['https://lhcenter.onrender.com', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
+      origin: corsOrigins(),
       credentials: true,
     },
   });

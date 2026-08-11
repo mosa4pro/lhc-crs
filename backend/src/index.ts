@@ -11,6 +11,7 @@ import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import http from 'http';
 import { fileURLToPath } from 'url';
+import { corsOrigins } from './config/env.js';
 
 import studentRoutes from './routes/student.js';
 import subscriptionRoutes from './routes/subscription.js';
@@ -61,7 +62,7 @@ app.use(responseTime((req, res, time) => {
 }));
 
 app.use(cors({
-  origin: ['https://lhcenter.onrender.com', 'http://localhost:5173'],
+  origin: corsOrigins(),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

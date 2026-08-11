@@ -26,3 +26,10 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 export type Env = z.infer<typeof envSchema>;
+
+// CORS allowed origins — comma-separated in CORS_ORIGIN, or '*' (or empty) to allow all
+export function corsOrigins(): string[] | true {
+  const raw = (env.CORS_ORIGIN || '').trim();
+  if (!raw || raw === '*') return true;
+  return raw.split(',').map(s => s.trim()).filter(Boolean);
+}
