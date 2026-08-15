@@ -8,6 +8,7 @@ import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { DeepSearchModal } from '../components/DeepSearchModal';
 import { formatDate } from '../utils/dateFormat';
+import { useSearchParams } from 'react-router-dom';
 
 interface Sub { id: number | string; studentId: string; baseFee: number; totalCost: number; paymentType: string; installmentsCount: number; date: string; status: string; notes?: string; diploma?: { id: string; name: string }; course?: { id: string; name: string }; entity?: { id: number; name: string }; }
 interface Inst { id: number; studentId: string; subscriptionId: string; subscriptionType: string; installmentNumber: number; totalInstallments: number; dueDate: string; amount: number; paidAmount: number; remainingAmount: number; status: string; paymentDate?: string; paymentMethod?: string; referenceNumber?: string; notes?: string; paymentWallet?: string; paymentBank?: string; senderInfo?: string; }
@@ -119,6 +120,15 @@ export const FinInstallmentsPage = () => {
     setAddMode(false);
     loadSubs(s.id); fetchBal(s.id);
   }, [loadSubs, fetchBal]);
+
+  // ── Open with preselected student (from student profile quick access) ──
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const sid = searchParams.get('studentId');
+    if (sid) {
+      apiFetch(`/students/${sid}`).then((s: any) => { if (s) selectStudent(s); }).catch(() => {});
+    }
+  }, [searchParams, selectStudent]);
 
   const selectSub = useCallback((sub: Sub) => {
     if (selSub?.id === sub.id) { setSelSub(null); setInsts([]); setSelInst(null); setTxs([]); return; }

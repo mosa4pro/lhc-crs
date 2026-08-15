@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { UserCheck, Users, Search, Plus, X, BookOpen, Clock, AlertCircle, AlertTriangle, RefreshCw, ChevronLeft, Loader2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useApi } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { DeepSearchModal } from '../components/DeepSearchModal';
@@ -277,6 +278,16 @@ export const AddToSectionPage = () => {
       setTransferLog(Array.isArray(logData) ? logData : []);
     } catch { setStudentSections([]); setAvailableSections([]); setTransferLog([]); }
   };
+
+  // ── Open with preselected student (from student profile quick access) ──
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const sid = searchParams.get('studentId');
+    if (sid) {
+      setTab('student-first');
+      apiFetch(`/students/${sid}`).then(s => { if (s) selectStudent(s); }).catch(() => {});
+    }
+  }, [searchParams]);
 
   const handleEnroll = async (sectionId: number) => {
     if (!selectedStudent) return;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Search, Save, GraduationCap, BookOpen, DollarSign, Filter,
-  CheckCircle, X, Pin, PinOff, CreditCard, Calendar, Plus, Minus
+  CheckCircle, X, Pin, PinOff, CreditCard, Calendar, Plus, Minus, AlertTriangle
 } from 'lucide-react';
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
@@ -82,7 +82,7 @@ export const SubscriptionPage = () => {
   const [installmentPlan, setInstallmentPlan] = useState({
     firstAmount: totalCost,
     firstPaid: false,
-    firstPaymentDest: 'ENTITY' as 'ENTITY' | 'US',
+    firstPaymentDest: '' as '' | 'ENTITY' | 'US',
     firstPaymentMethod: 'CASH' as 'CASH' | 'TRANSFER' | 'CHECK' | 'MONEY_TRANSFER',
     firstPaymentSubMethod: '' as string, // wallet type (TRANSFER) or transfer type (MONEY_TRANSFER)
     firstPaymentRef: '',
@@ -260,6 +260,10 @@ export const SubscriptionPage = () => {
     if (!form.programId) return toast.error('تنبيه', subType === 'DIPLOMA' ? 'يرجى اختيار الدبلوم' : 'يرجى اختيار الدورة');
     if (totalCost <= 0) return toast.error('تنبيه', 'التكلفة يجب أن تكون أكبر من صفر');
     if (installmentPlan.firstPaid) {
+      if (!installmentPlan.firstPaymentDest) {
+        setRefError('يرجى اختيار جهة الدفع (جهة التعليم أو لدينا)');
+        return;
+      }
       if (!installmentPlan.firstPaymentRef.trim()) {
         setRefError('رقم المرجع مطلوب عند تأكيد الدفع');
         return;
@@ -1134,7 +1138,7 @@ export const SubscriptionPage = () => {
               </span>
               <button type="button"
                 onClick={() => {
-                  setInstallmentPlan(prev => prev.firstPaid ? { ...prev, firstPaid: false } : { ...prev, firstPaid: true, firstPaymentDest: 'ENTITY', firstPaymentMethod: 'CASH', firstPaymentSubMethod: '', firstPaymentRef: '', firstPaymentWalletRef: '', firstPaymentBank: '', firstPaymentCheckNum: '', firstPaymentHawalaNum: '' });
+                  setInstallmentPlan(prev => prev.firstPaid ? { ...prev, firstPaid: false } : { ...prev, firstPaid: true, firstPaymentDest: '', firstPaymentMethod: 'CASH', firstPaymentSubMethod: '', firstPaymentRef: '', firstPaymentWalletRef: '', firstPaymentBank: '', firstPaymentCheckNum: '', firstPaymentHawalaNum: '' });
                   setRefError('');
                 }}
                 style={{
@@ -1153,23 +1157,41 @@ export const SubscriptionPage = () => {
             {installmentPlan.firstPaid && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {/* Payment destination */}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {[
-                    { value: 'ENTITY', label: '🏫 جهة التعليم' },
-                    { value: 'US', label: '🏢 لدينا' },
-                  ].map(opt => (
-                    <button key={opt.value} type="button"
-                      onClick={() => setInstallmentPlan(prev => ({ ...prev, firstPaymentDest: opt.value as 'ENTITY' | 'US', firstPaymentMethod: 'CASH', firstPaymentBank: '', firstPaymentCheckNum: '', firstPaymentHawalaNum: '' }))}
-                      style={{
-                        flex: 1, padding: '10px 16px', borderRadius: 10, border: '1.5px solid', cursor: 'pointer',
-                        fontWeight: 600, fontSize: '0.82rem', transition: 'all .2s',
-                        background: installmentPlan.firstPaymentDest === opt.value ? 'var(--primary)' : 'transparent',
-                        color: installmentPlan.firstPaymentDest === opt.value ? '#fff' : 'var(--text)',
-                        borderColor: installmentPlan.firstPaymentDest === opt.value ? 'var(--primary)' : 'var(--glass-border)',
-                      }}>
-                      {opt.label}
-                    </button>
-                  ))}
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                    جهة الدفع <span style={{ color: 'var(--danger)' }}>*</span>
+                  </label>
+                  <div style={{
+                    display: 'flex', gap: 8,
+                    padding: 6, borderRadius: 12,
+                    border: installmentPlan.firstPaymentDest
+                      ? '1.5px solid var(--glass-border)'
+                      : '1.5px dashed var(--danger)',
+                    background: installmentPlan.firstPaymentDest ? 'transparent' : 'rgba(239,68,68,0.06)',
+                    transition: 'all .2s',
+                  }}>
+                    {[
+                      { value: 'ENTITY', label: '🏫 جهة التعليم' },
+                      { value: 'US', label: '🏢 لدينا' },
+                    ].map(opt => (
+                      <button key={opt.value} type="button"
+                        onClick={() => setInstallmentPlan(prev => ({ ...prev, firstPaymentDest: opt.value as 'ENTITY' | 'US', firstPaymentMethod: 'CASH', firstPaymentBank: '', firstPaymentCheckNum: '', firstPaymentHawalaNum: '' }))}
+                        style={{
+                          flex: 1, padding: '10px 16px', borderRadius: 10, border: '1.5px solid', cursor: 'pointer',
+                          fontWeight: 600, fontSize: '0.82rem', transition: 'all .2s',
+                          background: installmentPlan.firstPaymentDest === opt.value ? 'var(--primary)' : 'transparent',
+                          color: installmentPlan.firstPaymentDest === opt.value ? '#fff' : 'var(--text)',
+                          borderColor: installmentPlan.firstPaymentDest === opt.value ? 'var(--primary)' : 'var(--glass-border)',
+                        }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {!installmentPlan.firstPaymentDest && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <AlertTriangle size={13} /> مطلوب — اختر جهة الدفع (جهة التعليم أو لدينا) لإتمام الدفعة الأولى
+                    </div>
+                  )}
                 </div>
 
                 {/* Payment method */}

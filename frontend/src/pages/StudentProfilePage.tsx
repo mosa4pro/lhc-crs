@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Search, User, FileText, Calendar, CreditCard, GraduationCap, Printer, Filter, Image, MessageCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Search, User, FileText, Calendar, CreditCard, GraduationCap, Printer, Filter, Image, MessageCircle, ArrowLeftRight, Wallet } from 'lucide-react';
 import { useApi, useAuth, fileUrl } from '../context/AuthContext';
 import { DeepSearchModal } from '../components/DeepSearchModal';
 import { LearningTypeBadge, learningTypeLabel, modalityLabel } from '../components/LearningTypeBadge';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useChat } from '../context/ChatContext';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 const DAY_ABBR: Record<string, string> = {
   SAT: 'السبت', SUN: 'الأحد', MON: 'الإثنين', TUE: 'الثلاثاء',
@@ -39,6 +39,7 @@ export const StudentProfilePage = () => {
   const { centerName, centerLogo } = useAuth();
   const { setPendingShareStudent, setOpen } = useChat();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
@@ -105,6 +106,18 @@ export const StudentProfilePage = () => {
   const paid = ins.filter((i: any) => i.status === 'PAID').reduce((s: number, i: any) => s + i.paidAmount, 0);
   const remaining = ins.filter((i: any) => i.status !== 'PAID').reduce((s: number, i: any) => s + i.remainingAmount, 0);
 
+  // Map subscription id -> entity name (for showing payment destination entity in installments table)
+  const entityBySub = useMemo(() => {
+    const m = new Map<number, string>();
+    (selectedStudent?.diplomaSubscriptions || []).forEach((sub: any) => { if (sub?.entity?.name) m.set(Number(sub.id), sub.entity.name); });
+    (selectedStudent?.courseSubscriptions || []).forEach((sub: any) => { if (sub?.entity?.name) m.set(Number(sub.id), sub.entity.name); });
+    return m;
+  }, [selectedStudent]);
+  const instEntityName = (inst: any) => {
+    const subId = inst.diplomaSubId || inst.courseSubId;
+    return subId ? entityBySub.get(Number(subId)) : undefined;
+  };
+
   const subs = [
     ...(selectedStudent?.diplomaSubscriptions || []).map((s: any) => ({ ...s, _type: 'diploma' })),
     ...(selectedStudent?.courseSubscriptions || []).map((s: any) => ({ ...s, _type: 'course' })),
@@ -160,8 +173,8 @@ export const StudentProfilePage = () => {
     }
     const ins = profile?.installments || [];
     if (printSections.installments && ins.length) {
-      html += `<div class="section"><h4>جدول الأقساط</h4><table><thead><tr><th>القسط</th><th>المبلغ</th><th>تاريخ الاستحقاق</th><th>الحالة</th></tr></thead><tbody>`;
-      ins.forEach((inst: any) => { const st = inst.status === 'PAID' ? 'مدفوع' : inst.status === 'OVERDUE' ? 'متأخر' : 'معلق'; const cls = inst.status === 'PAID' ? 'success' : inst.status === 'OVERDUE' ? 'danger' : 'warning'; html += `<tr><td>${inst.installmentNumber}</td><td>${inst.amount?.toFixed(3)} د</td><td>${new Date(inst.dueDate).toLocaleDateString('ar-JO')}</td><td><span class="badge ${cls}">${st}</span></td></tr>`; });
+      html += `<div class="section"><h4>جدول الأقساط</h4><table><thead><tr><th>القسط</th><th>المبلغ</th><th>تاريخ الاستحقاق</th><th>جهة الدفع</th><th>الحالة</th></tr></thead><tbody>`;
+      ins.forEach((inst: any) => { const st = inst.status === 'PAID' ? 'مدفوع' : inst.status === 'OVERDUE' ? 'متأخر' : 'معلق'; const cls = inst.status === 'PAID' ? 'success' : inst.status === 'OVERDUE' ? 'danger' : 'warning'; const destParts: string[] = []; if (inst.paymentDest) { destParts.push(inst.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'); const ien = inst.paymentDest === 'ENTITY' ? instEntityName(inst) : undefined; if (ien) destParts.push(ien); } html += `<tr><td>${inst.installmentNumber}</td><td>${inst.amount?.toFixed(3)} د</td><td>${new Date(inst.dueDate).toLocaleDateString('ar-JO')}</td><td>${destParts.length ? destParts.join(' / ') : '—'}</td><td><span class="badge ${cls}">${st}</span></td></tr>`; });
       html += `</tbody></table></div>`;
     }
     if (printSections.attendance) { const secs = getSections(); if (secs.length) {
@@ -260,7 +273,13 @@ export const StudentProfilePage = () => {
                   </span>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="glass-btn" onClick={() => navigate(`/add-to-section?studentId=${selectedStudent.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ArrowLeftRight size={15} /> السحب والإضافة
+                </button>
+                <button className="glass-btn" onClick={() => navigate(`/installments?studentId=${selectedStudent.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Wallet size={15} /> الأقساط والدفع
+                </button>
                 <button className="glass-btn secondary" onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Printer size={15} /> طباعة A4
                 </button>
@@ -413,12 +432,24 @@ export const StudentProfilePage = () => {
               </h4>
               {ins.length > 0 ? (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                  <thead><tr><th style={thStyle}>القسط</th><th style={thStyle}>المبلغ</th><th style={thStyle}>تاريخ الاستحقاق</th><th style={thStyle}>الحالة</th></tr></thead>
+                  <thead><tr><th style={thStyle}>القسط</th><th style={thStyle}>المبلغ</th><th style={thStyle}>تاريخ الاستحقاق</th><th style={thStyle}>جهة الدفع</th><th style={thStyle}>الحالة</th></tr></thead>
                   <tbody>{ins.slice(0, 8).map((inst: any) => (
                     <tr key={inst.id}>
                       <td style={tdStyle}>قسط {inst.installmentNumber}</td>
                       <td style={tdStyle}>{inst.amount?.toFixed(3)} د</td>
                       <td style={tdStyle}>{new Date(inst.dueDate).toLocaleDateString('ar-JO')}</td>
+                      <td style={tdStyle}>
+                        {inst.paymentDest ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span className={`badge ${inst.paymentDest === 'ENTITY' ? 'warning' : 'secondary'}`} style={{ fontSize: '0.68rem', alignSelf: 'flex-start' }}>
+                              {inst.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'}
+                            </span>
+                            {inst.paymentDest === 'ENTITY' && instEntityName(inst) && (
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{instEntityName(inst)}</span>
+                            )}
+                          </div>
+                        ) : '—'}
+                      </td>
                       <td style={tdStyle}>
                         <span className={`badge ${inst.status === 'PAID' ? 'success' : inst.status === 'OVERDUE' ? 'danger' : 'warning'}`}>
                           {inst.status === 'PAID' ? 'مدفوع' : inst.status === 'OVERDUE' ? 'متأخر' : 'معلق'}
