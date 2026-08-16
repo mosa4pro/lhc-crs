@@ -63,6 +63,7 @@ export const FinInstallmentsPage = () => {
 
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleCount, setScheduleCount] = useState(0);
+  const [scheduleMin, setScheduleMin] = useState(1);
   const [scheduleTotal, setScheduleTotal] = useState(0);
   const [scheduleData, setScheduleData] = useState<{ id: number | null; amount: number; dueDate: string }[]>([]);
   const [addMode, setAddMode] = useState(false);
@@ -257,9 +258,13 @@ export const FinInstallmentsPage = () => {
       for (let i = 0; i < Math.min(newCount, currentUnpaid.length); i++) {
         const s = scheduleData[i];
         if (s.id) {
+          const inst = currentUnpaid[i];
+          // For a partially-paid installment, keep its paid portion locked in the total:
+          // amount = paidAmount + new share (backend keeps remainingAmount = new share).
+          const amountToSend = inst && inst.paidAmount > 0 ? inst.paidAmount + s.amount : s.amount;
           await apiFetch(`/installments/${s.id}`, {
             method: 'PUT',
-            body: JSON.stringify({ amount: s.amount, dueDate: s.dueDate })
+            body: JSON.stringify({ amount: amountToSend, dueDate: s.dueDate })
           });
         }
       }
@@ -282,6 +287,11 @@ export const FinInstallmentsPage = () => {
       // Delete excess unpaid installments if count decreased
       if (newCount < currentUnpaid.length) {
         const toDelete = currentUnpaid.slice(newCount);
+        if (toDelete.some(i => i.paidAmount > 0)) {
+          toast.error('لا يمكن تقليص عدد الأقساط لأن بعض الأقساط المراد حذفها مدفوعة جزئياً');
+          setSaving(false);
+          return;
+        }
         for (const inst of toDelete) {
           try { await apiFetch(`/installments/${inst.id}?merge=true`, { method: 'DELETE' }); } catch {}
         }
@@ -404,7 +414,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
   }, []);
 
   const isU = selInst && (selInst.status === 'PENDING' || selInst.status === 'PARTIAL' || selInst.status === 'OVERDUE');
-  const unpaidInsts = insts.filter(i => i.status === 'PENDING' || i.status === 'OVERDUE');
+  const unpaidInsts = insts.filter(i => i.remainingAmount > 0);
 
   const distributeSchedule = useCallback((count: number, total: number, baseData: typeof scheduleData) => {
     if (count < 1) return;
@@ -1031,12 +1041,13 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                   <CreditCard size={14} color="var(--secondary)" />
                   <span>{selSub.id === 'EXTRA' ? 'الرسوم الإضافية' : `أقساط ${subName(selSub)}`}</span>
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>({insts.length})</span>
-                  {unpaidInsts.length > 1 && selSub.id !== 'EXTRA' && (
+                  {unpaidInsts.length >= 1 && selSub.id !== 'EXTRA' && (
                     <button onClick={() => {
                       const cnt = unpaidInsts.length;
                       const total = unpaidInsts.reduce((s, i) => s + i.remainingAmount, 0);
                       setScheduleData(distributeSchedule(cnt, total, unpaidInsts.map(i => ({ id: i.id, amount: i.amount, dueDate: i.dueDate.split('T')[0] }))) ?? []);
                       setScheduleCount(cnt);
+                      setScheduleMin(Math.max(1, unpaidInsts.filter(i => i.paidAmount > 0).length));
                       setScheduleTotal(total);
                       setShowSchedule(true);
                     }} style={{
@@ -1186,7 +1197,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                     <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: 2 }}>عدد الدفعات</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <button className="glass-btn icon-btn xs" onClick={() => {
-                        const cnt = Math.max(1, scheduleCount - 1);
+                        const cnt = Math.max(scheduleMin, scheduleCount - 1);
                         setScheduleCount(cnt);
                         setScheduleData(distributeSchedule(cnt, scheduleTotal, scheduleData) ?? []);
                       }} style={{ width: 26, height: 26, borderRadius: 6, fontSize: '1rem', lineHeight: 1, padding: 0, fontWeight: 700 }}>−</button>
