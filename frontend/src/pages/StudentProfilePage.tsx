@@ -534,9 +534,14 @@ export const StudentProfilePage = () => {
                         const transferDate = getTransferDate(sec.id, isCurrent);
                         return (
                           <>
-                          <tr key={sec.id}>
+                          <tr key={sec.id} onClick={() => setOpenAttSec(openAttSec === sec.id ? null : sec.id)}
+                            style={{ cursor: 'pointer', background: openAttSec === sec.id ? 'var(--primary-light)' : 'transparent', transition: 'background 0.15s' }}
+                            title="اضغط لعرض تفاصيل أيام الحضور والغياب">
                             <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
-                              {sec.course?.name || sec.diploma?.name || '—'}
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                {openAttSec === sec.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                {sec.course?.name || sec.diploma?.name || '—'}
+                              </span>
                             </td>
                             <td style={tdStyle}>{sec.name || '—'}</td>
                             <td style={tdStyle}>{formatDays(sec.days)}</td>
@@ -550,7 +555,7 @@ export const StudentProfilePage = () => {
                             <td style={tdStyle}>{st.total}</td>
                             <td style={tdStyle}>{st.present}</td>
                             <td style={tdStyle}>
-                              <button onClick={() => setOpenAttSec(openAttSec === sec.id ? null : sec.id)}
+                              <button onClick={e => { e.stopPropagation(); setOpenAttSec(openAttSec === sec.id ? null : sec.id); }}
                                 title="عرض تفاصيل أيام الحضور والغياب"
                                 style={{
                                   background: 'none', border: '1px solid var(--glass-border)', borderRadius: 8,
