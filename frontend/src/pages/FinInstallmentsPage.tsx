@@ -353,9 +353,10 @@ export const FinInstallmentsPage = () => {
         paymentDest: payDest,
         referenceNumber: payRef,
       };
-      if (payDest === 'US' && payMethod === 'TRANSFER') { body.paymentSubMethod = paySubMethod; if (payWalletRef) body.paymentWalletRef = payWalletRef; }
-      if (payDest === 'US' && payMethod === 'CHECK') { body.paymentBank = payBank; body.checkNumber = payCheckNum; }
-      if (payDest === 'US' && payMethod === 'MONEY_TRANSFER') { body.paymentSubMethod = paySubMethod; body.hawalaNumber = payHawalaNum; }
+      // Sub-method fields attached by payment method — identical to FinReceiptsPage
+      if (payMethod === 'TRANSFER') { body.paymentSubMethod = paySubMethod; if (payWalletRef) body.paymentWalletRef = payWalletRef; }
+      if (payMethod === 'CHECK') { body.paymentBank = payBank; body.checkNumber = payCheckNum; }
+      if (payMethod === 'MONEY_TRANSFER') { body.paymentSubMethod = paySubMethod; body.hawalaNumber = payHawalaNum; }
       if (payNotes) body.notes = payNotes;
 
       // Unified payment path: use /financial/pay-student (same as receipts page).
