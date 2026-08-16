@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useApi, useAuth } from '../context/AuthContext';
 import { X, Bell, AlertTriangle, ChevronDown, Eye, ExternalLink } from 'lucide-react';
+import { formatDateTime } from '../utils/dateFormat';
 
 interface Announcement {
   id: number;
@@ -83,10 +84,7 @@ export const AnnouncementBanner = () => {
                   إعلان عاجل
                 </div>
                 <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.78rem', marginTop: 2 }}>
-                  {new Date(urgent.createdAt).toLocaleDateString('ar-SA', {
-                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-                    hour: '2-digit', minute: '2-digit'
-                  })}
+                  {formatDateTime(urgent.createdAt)}
                 </div>
               </div>
               <button onClick={dismissUrgent}

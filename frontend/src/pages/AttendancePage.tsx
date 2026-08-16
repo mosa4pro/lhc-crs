@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { LearningTypeBadge } from '../components/LearningTypeBadge';
+import { DateField } from '../components/DateField';
 import { DIPLOMA_CATEGORIES } from '../utils/constants';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -490,8 +491,7 @@ export const AttendancePage = () => {
             {tab === 'record' && (
               <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Calendar size={16} style={{ color: 'var(--text-muted)' }} />
-                <input type="date" className="glass-input" style={{ padding: '5px 10px', fontSize: '0.82rem' }}
-                  value={date} onChange={e => setDate(e.target.value)} />
+                <DateField value={date} onChange={v => setDate(v)} style={{ width: 260 }} selectStyle={{ padding: '5px 10px', fontSize: '0.82rem' }} />
               </div>
             )}
           </div>

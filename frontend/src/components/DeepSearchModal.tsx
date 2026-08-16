@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, Filter, Calendar, User, Hash, Phone, GraduationCap, CheckSquare, Building2, RefreshCw } from 'lucide-react';
 import { JORDANIAN_UNIVERSITIES } from '../utils/constants';
+import { DateField } from './DateField';
 import { useAuth } from '../context/AuthContext';
 
 export interface DeepSearchFilters {
@@ -282,11 +283,11 @@ const DeepSearchModalInner: React.FC<Props> = ({
                 <div style={{ display: 'flex', gap: 10 }}>
                   <div style={{ flex: 1 }}>
                     <label className="form-label" style={{ fontSize: '0.78rem' }}>من</label>
-                    <input type="date" className="glass-input" value={filters.regDateFrom || ''} onChange={e => set('regDateFrom', e.target.value)}/>
+                    <DateField value={filters.regDateFrom || ''} onChange={v => set('regDateFrom', v)}/>
                   </div>
                   <div style={{ flex: 1 }}>
                     <label className="form-label" style={{ fontSize: '0.78rem' }}>إلى</label>
-                    <input type="date" className="glass-input" value={filters.regDateTo || ''} onChange={e => set('regDateTo', e.target.value)}/>
+                    <DateField value={filters.regDateTo || ''} onChange={v => set('regDateTo', v)}/>
                   </div>
                 </div>
               </div>
@@ -295,11 +296,11 @@ const DeepSearchModalInner: React.FC<Props> = ({
                 <div style={{ display: 'flex', gap: 10 }}>
                   <div style={{ flex: 1 }}>
                     <label className="form-label" style={{ fontSize: '0.78rem' }}>من</label>
-                    <input type="date" className="glass-input" value={filters.dobFrom || ''} onChange={e => set('dobFrom', e.target.value)}/>
+                    <DateField value={filters.dobFrom || ''} onChange={v => set('dobFrom', v)}/>
                   </div>
                   <div style={{ flex: 1 }}>
                     <label className="form-label" style={{ fontSize: '0.78rem' }}>إلى</label>
-                    <input type="date" className="glass-input" value={filters.dobTo || ''} onChange={e => set('dobTo', e.target.value)}/>
+                    <DateField value={filters.dobTo || ''} onChange={v => set('dobTo', v)}/>
                   </div>
                 </div>
               </div>

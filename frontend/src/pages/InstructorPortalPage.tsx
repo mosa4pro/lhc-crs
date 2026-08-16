@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { LearningTypeBadge } from '../components/LearningTypeBadge';
+import { DateField } from '../components/DateField';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const API = API_BASE + '/api';
@@ -363,7 +364,7 @@ export const InstructorPortalPage = () => {
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">التاريخ</label>
-                      <input type="date" className="glass-input" value={date} onChange={e => setDate(e.target.value)}/>
+                      <DateField value={date} onChange={v => setDate(v)} />
                     </div>
                   </div>
                 </div>

@@ -9,6 +9,7 @@ import {
   StickyNote, Pin, PinOff, Palette, Save, X,
   Table, Search, FileSpreadsheet
 } from 'lucide-react';
+import { formatDate } from '../utils/dateFormat';
 
 // ==================== API NOTE ====================
 interface ApiNote {
@@ -667,7 +668,7 @@ export const DocumentsDesktopApp: React.FC<{ onClose: () => void }> = ({ onClose
                   {doc.title}
                 </div>
                 <div style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center' }}>
-                  {new Date(doc.updatedAt).toLocaleDateString('ar-SA')}
+                  {formatDate(doc.updatedAt)}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
                   <button onClick={e => { e.stopPropagation(); handleDelete(doc); }}

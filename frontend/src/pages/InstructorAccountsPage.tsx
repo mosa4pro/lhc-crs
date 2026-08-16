@@ -3,6 +3,7 @@ import {
   GraduationCap, Search, RefreshCw, UserPlus, Shield,
   Eye, EyeOff, Link2, Unlink, X, Copy, Check, Wand2, Phone, Mail
 } from 'lucide-react';
+import { formatDate } from '../utils/dateFormat';
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { PermissionGuard } from '../components/PermissionGuard';
@@ -51,7 +52,7 @@ function printReceipt(name: string, username: string, password: string) {
       <div class="row"><span class="label">كلمة المرور</span><span class="value" dir="ltr">${password}</span></div>
     </div>
     <div class="note">يُرجى الاحتفاظ بهذه المعلومات وعدم مشاركتها مع أي شخص</div>
-    <div class="footer">تم الإنشاء في ${new Date().toLocaleDateString('ar-JO')}</div>
+    <div class="footer">تم الإنشاء في ${formatDate(new Date())}</div>
     <script>window.print();</script>
   </body></html>`);
   w.document.close();

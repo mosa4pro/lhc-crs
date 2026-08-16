@@ -3,6 +3,7 @@ import { Briefcase, Save, Users, Award, Clock, DollarSign, RefreshCw, Trash2, Se
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { normalizeDigits } from '../utils/constants';
+import { DateField } from '../components/DateField';
 import { ConfirmModal } from '../components/ConfirmModal';
 
 // ==========================================
@@ -472,7 +473,7 @@ export const AdminEmployeesPage = () => {
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">تاريخ الميلاد</label>
-                <input type="date" className="glass-input" value={empForm.dateOfBirth || ''} onChange={e => empSet('dateOfBirth', e.target.value)} />
+                <DateField value={empForm.dateOfBirth || ''} onChange={v => empSet('dateOfBirth', v)} maxYear={new Date().getFullYear()} />
               </div>
             </div>
 

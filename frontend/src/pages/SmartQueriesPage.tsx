@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Search, Filter, Users, GraduationCap, BookOpen, RefreshCw } from 'lucide-react';
 import { useApi } from '../context/AuthContext';
 import { PermissionGuard } from '../components/PermissionGuard';
+import { formatDate } from '../utils/dateFormat';
 
 export const SmartQueriesPage = () => {
   const { apiFetch } = useApi();
@@ -110,7 +111,7 @@ export const SmartQueriesPage = () => {
                         <tr key={inst.id}>
                           <td style={{ fontWeight: 600 }}>{inst.student?.fullNameAr || '—'}</td>
                           <td>{inst.installmentNumber}/{inst.totalInstallments}</td>
-                          <td style={{ color: 'var(--danger)' }}>{new Date(inst.dueDate).toLocaleDateString('ar-JO')}</td>
+                          <td style={{ color: 'var(--danger)' }}>{formatDate(inst.dueDate)}</td>
                           <td style={{ color: 'var(--danger)', fontWeight: 700 }}>{inst.remainingAmount?.toFixed(3)} د</td>
                         </tr>
                       ))}

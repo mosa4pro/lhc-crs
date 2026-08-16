@@ -4,6 +4,7 @@ import {
   X, Eye, EyeOff, Calendar, Users, UserCheck, Filter, Globe, Save,
   Clock, Archive, AlertCircle, CheckCircle
 } from 'lucide-react';
+import { formatDate } from '../utils/dateFormat';
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { PermissionGuard } from '../components/PermissionGuard';
@@ -225,7 +226,7 @@ export const AdminAnnouncementsPage = () => {
                           {a.title}
                         </div>
                         <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                          {new Date(a.createdAt).toLocaleDateString('ar-JO')}
+                          {formatDate(a.createdAt)}
                         </div>
                       </td>
                       <td>
@@ -252,10 +253,10 @@ export const AdminAnnouncementsPage = () => {
                         </div>
                       </td>
                       <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-                        {new Date(a.startAt).toLocaleDateString('ar-JO')}
+                        {formatDate(a.startAt)}
                       </td>
                       <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap', color: a.endAt ? undefined : 'var(--text-muted)' }}>
-                        {a.endAt ? new Date(a.endAt).toLocaleDateString('ar-JO') : '—'}
+                        {a.endAt ? formatDate(a.endAt) : '—'}
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{a._count.reads}</span>

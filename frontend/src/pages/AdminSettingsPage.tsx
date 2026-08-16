@@ -3,6 +3,7 @@ import { Settings, Save, Globe, Image, Monitor, Smartphone, Palette, Upload, X, 
 import { PermissionGuard } from '../components/PermissionGuard';
 import { useApi, useAuth, fileUrl } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
+import { formatDate } from '../utils/dateFormat';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -524,7 +525,7 @@ export const AdminSettingsPage = () => {
                           </td>
                           <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', direction: 'ltr' }}>{log.ipAddress || '—'}</td>
                           <td style={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                            <div>{new Date(log.createdAt).toLocaleDateString('ar-JO')}</div>
+                            <div>{formatDate(log.createdAt)}</div>
                             <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{new Date(log.createdAt).toLocaleTimeString('ar-JO')}</div>
                           </td>
                         </tr>

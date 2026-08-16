@@ -3,10 +3,12 @@ import {
   Search, RefreshCw, FileText, Plus, X, DollarSign, Printer,
   Clock, AlertTriangle, CreditCard, Calendar, User, Filter, Banknote, Building2, Briefcase, GraduationCap
 } from 'lucide-react';
+import { formatDate } from '../utils/dateFormat';
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { PAYMENT_METHODS, BANK_OPTIONS } from '../utils/constants';
 import { DeepSearchModal } from '../components/DeepSearchModal';
+import { DateField } from '../components/DateField';
 
 
 interface FinTx {
@@ -387,10 +389,10 @@ export const FinReceiptsPage = () => {
 </style></head><body>
 <button onclick="window.print()">🖨️ طباعة السند</button>
 <h1>سند قبض</h1>
-<div class="sub">مركز LHC للتدريب — ${new Date().toLocaleDateString('ar-JO')}</div>
+<div class="sub">مركز LHC للتدريب — ${formatDate(new Date())}</div>
 <div class="rc">
 <div class="r"><span class="l">رقم السند</span><span class="v">${tx.receiptNumber}</span></div>
-<div class="r"><span class="l">التاريخ</span><span class="v">${new Date(tx.date).toLocaleDateString('ar-JO')}</span></div>
+<div class="r"><span class="l">التاريخ</span><span class="v">${formatDate(tx.date)}</span></div>
 ${tx.student ? `<div class="r"><span class="l">الطالب</span><span class="v">${tx.student.fullNameAr} (${tx.student.id})</span></div>` : ''}
 <div class="r"><span class="l">المبلغ</span><span class="v">${tx.amount.toFixed(2)} د.أ</span></div>
 <div class="r"><span class="l">طريقة الدفع</span><span class="v">${PML[tx.paymentMethod] || tx.paymentMethod}</span></div>
@@ -523,11 +525,11 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
           </div>
           <div style={{ minWidth: 130 }}>
             <label style={{ ...gl, fontSize: '0.7rem', marginBottom: 3 }}>من تاريخ</label>
-            <input type="date" className="glass-input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ fontSize: '0.8rem', padding: '6px 9px' }} />
+            <DateField value={dateFrom} onChange={v => setDateFrom(v)} style={{ minWidth: 250 }} selectStyle={{ fontSize: '0.8rem', padding: '6px 9px' }} />
           </div>
           <div style={{ minWidth: 130 }}>
             <label style={{ ...gl, fontSize: '0.7rem', marginBottom: 3 }}>إلى تاريخ</label>
-            <input type="date" className="glass-input" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ fontSize: '0.8rem', padding: '6px 9px' }} />
+            <DateField value={dateTo} onChange={v => setDateTo(v)} style={{ minWidth: 250 }} selectStyle={{ fontSize: '0.8rem', padding: '6px 9px' }} />
           </div>
           <div style={{ display: 'flex', gap: 5, alignItems: 'flex-end', paddingBottom: 1 }}>
             <button className="glass-btn icon-btn sm" onClick={clearFilters} title="مسح الفلاتر" style={{ opacity: hasActiveFilters ? 1 : 0.35, transition: 'opacity .15s' }}><X size={13} /></button>
@@ -595,7 +597,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
               ) : filtered.map(tx => (
                 <tr key={tx.id} onClick={() => setSelectedTx(tx)} className={selectedTx?.id === tx.id ? 'active' : ''} style={{ cursor: 'pointer', transition: 'background .12s' }}>
                   <td style={{ fontFamily: 'monospace', fontSize: '0.66rem', padding: '9px 12px', color: 'var(--text-muted)', direction: 'ltr', textAlign: 'right' }}>{tx.receiptNumber}</td>
-                  <td style={{ fontSize: '0.7rem', whiteSpace: 'nowrap', padding: '9px 12px' }}>{new Date(tx.date).toLocaleDateString('ar-JO')}</td>
+                  <td style={{ fontSize: '0.7rem', whiteSpace: 'nowrap', padding: '9px 12px' }}>{formatDate(tx.date)}</td>
                   <td style={{ padding: '9px 12px' }}><span className={`badge ${TX_CLASS[tx.type] || 'secondary'}`} style={{ fontSize: '0.56rem', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>{TX_LABEL[tx.type] || tx.type}</span></td>
                   <td style={{ fontSize: '0.7rem', padding: '9px 12px' }}>
                     {tx.student?.fullNameAr ? (
@@ -630,7 +632,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
             <div style={{ padding: '18px 22px' }}>
               <div style={{ padding: '14px 16px', background: 'var(--glass-bg)', borderRadius: 10 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 20px', fontSize: '0.8rem' }}>
-                  <div><div style={{ color: 'var(--text-muted)', fontSize: '0.64rem', marginBottom: 2, fontWeight: 500 }}>التاريخ</div><div style={{ fontWeight: 600 }}>{new Date(selectedTx.date).toLocaleDateString('ar-JO')}</div></div>
+                  <div><div style={{ color: 'var(--text-muted)', fontSize: '0.64rem', marginBottom: 2, fontWeight: 500 }}>التاريخ</div><div style={{ fontWeight: 600 }}>{formatDate(selectedTx.date)}</div></div>
                   <div><div style={{ color: 'var(--text-muted)', fontSize: '0.64rem', marginBottom: 2, fontWeight: 500 }}>الحالة</div><span className={`badge ${selectedTx.status === 'COMPLETED' ? 'success' : 'secondary'}`} style={{ fontSize: '0.6rem', padding: '2px 7px' }}>{selectedTx.status === 'COMPLETED' ? 'مكتمل' : 'ملغي'}</span></div>
                   {selectedTx.student && (
                     <div style={{ gridColumn: '1 / -1' }}>

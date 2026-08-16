@@ -6,6 +6,8 @@ import {
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { DeepSearchModal } from '../components/DeepSearchModal';
+import { DateField } from '../components/DateField';
+import { formatDate } from '../utils/dateFormat';
 import { cleanNum, toNumber } from '../utils/arabicNumbers';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -248,8 +250,6 @@ export const SubscriptionPage = () => {
   const getPhone = (phones: any) => {
     try { return (typeof phones === 'string' ? JSON.parse(phones) : phones)?.[0] || '—'; } catch { return '—'; }
   };
-
-  const formatDate = (d: string) => d ? new Date(d).toLocaleDateString('ar-JO') : '—';
 
   /* ── Save subscription ── */
   // Validation state
@@ -828,7 +828,7 @@ export const SubscriptionPage = () => {
           <div className="grid-2" style={{ gap: 12 }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">تاريخ التسجيل</label>
-              <input type="date" className="glass-input" value={form.date} onChange={e => setForm(prev => ({ ...prev, date: e.target.value }))}/>
+              <DateField value={form.date || ''} onChange={v => setForm(prev => ({ ...prev, date: v }))}/>
             </div>
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">حالة الاشتراك</label>
@@ -1111,12 +1111,13 @@ export const SubscriptionPage = () => {
                           </div>
                         )}
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0, width: 24 }}>د.أ</span>
-                        <input type="date" className="glass-input"
-                          style={{ width: 130, fontSize: '0.78rem', padding: '5px 8px' }}
+                        <DateField
+                          style={{ width: 230 }}
+                          selectStyle={{ padding: '5px 8px', fontSize: '0.78rem' }}
                           value={installmentPlan.dates[i] || new Date(Date.now() + i * 30 * 86400000).toISOString().split('T')[0]}
-                          onChange={e => {
+                          onChange={v => {
                             const newDates = [...installmentPlan.dates];
-                            newDates[i] = e.target.value;
+                            newDates[i] = v;
                             setInstallmentPlan(prev => ({ ...prev, dates: newDates }));
                           }}/>
                       </div>

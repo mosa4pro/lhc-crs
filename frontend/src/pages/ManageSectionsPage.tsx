@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { DateField } from '../components/DateField';
 import { LearningTypeBadge, LEARNING_TYPES, MODALITIES, modalityLabel } from '../components/LearningTypeBadge';
 import { formatDate } from '../utils/dateFormat';
 
@@ -689,13 +690,11 @@ export const ManageSectionsPage = () => {
               <div className="grid-2" style={{ marginTop: 16 }}>
                 <div className="form-group">
                   <label className="form-label">تاريخ البداية (اختياري)</label>
-                  <input type="date" className="glass-input" value={formData.startDate}
-                    onChange={e => setFormData({ ...formData, startDate: e.target.value })}/>
+                  <DateField value={formData.startDate} onChange={v => setFormData({ ...formData, startDate: v })}/>
                 </div>
                 <div className="form-group">
                   <label className="form-label">تاريخ النهاية (اختياري)</label>
-                  <input type="date" className="glass-input" value={formData.endDate}
-                    onChange={e => setFormData({ ...formData, endDate: e.target.value })}/>
+                  <DateField value={formData.endDate} onChange={v => setFormData({ ...formData, endDate: v })}/>
                 </div>
               </div>
 

@@ -7,6 +7,7 @@ import {
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { DeepSearchModal } from '../components/DeepSearchModal';
+import { DateField } from '../components/DateField';
 import { formatDate } from '../utils/dateFormat';
 import { toNumber } from '../utils/arabicNumbers';
 import { useSearchParams } from 'react-router-dom';
@@ -625,7 +626,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                   </div>
                   <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                     <label className="form-label" style={{ fontSize: '0.72rem' }}>تاريخ الاستحقاق</label>
-                    <input type="date" className="glass-input" value={aDue} onChange={e => setADue(e.target.value)} style={{ fontSize: '0.78rem', padding: '9px 12px' }} />
+                    <DateField value={aDue} onChange={v => setADue(v)} selectStyle={{ padding: '9px 12px', fontSize: '0.78rem' }} />
                   </div>
                 </div>
 
@@ -905,7 +906,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                     </div>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                       <label className="form-label">تاريخ الاستحقاق</label>
-                      <input type="date" className="glass-input" value={eDue} onChange={e => setEDue(e.target.value)} style={{ fontSize: '0.82rem' }} />
+                      <DateField value={eDue} onChange={v => setEDue(v)} selectStyle={{ fontSize: '0.82rem' }} />
                     </div>
                   </div>
                   <div className="form-group" style={{ marginBottom: 10 }}>
@@ -1262,13 +1263,13 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                       </div>
                       <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                         <label className="form-label">تاريخ الاستحقاق</label>
-                        <input type="date" className="glass-input" value={s.dueDate}
-                          onChange={e => {
+                        <DateField value={s.dueDate}
+                          onChange={v => {
                             const newData = [...scheduleData];
-                            newData[idx] = { ...newData[idx], dueDate: e.target.value };
+                            newData[idx] = { ...newData[idx], dueDate: v };
                             setScheduleData(newData);
                           }}
-                          style={{ fontSize: '0.82rem' }} />
+                          selectStyle={{ fontSize: '0.82rem' }} />
                       </div>
                     </div>
                   </div>

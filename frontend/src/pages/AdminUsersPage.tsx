@@ -4,6 +4,7 @@ import {
   Lock, Eye, EyeOff, UserCheck, UserX, Link2, Unlink, Briefcase,
   Copy, Check
 } from 'lucide-react';
+import { formatDate } from '../utils/dateFormat';
 import { useApi, ALL_PERMISSIONS } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { PermissionGuard } from '../components/PermissionGuard';
@@ -382,7 +383,7 @@ export const AdminUsersPage = () => {
                       <td>
                         <div style={{ fontWeight: 600 }}>{u.fullName}</div>
                         <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                          {new Date(u.createdAt).toLocaleDateString('ar-JO')}
+                          {formatDate(u.createdAt)}
                         </div>
                       </td>
                       <td><code style={{ fontSize: '0.85rem', background: 'var(--card-bg)', padding: '2px 8px', borderRadius: 6 }}>@{u.username}</code></td>

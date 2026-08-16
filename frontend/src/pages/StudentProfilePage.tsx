@@ -6,6 +6,7 @@ import { LearningTypeBadge, learningTypeLabel, modalityLabel } from '../componen
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useChat } from '../context/ChatContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { formatDate } from '../utils/dateFormat';
 
 const DAY_ABBR: Record<string, string> = {
   SAT: 'السبت', SUN: 'الأحد', MON: 'الإثنين', TUE: 'الثلاثاء',
@@ -189,10 +190,10 @@ export const StudentProfilePage = () => {
       ${s.fullNameEn ? `<th>الاسم (إنج)</th><td>${s.fullNameEn}</td>` : '<td></td><td></td>'}
       </tr>${s.email ? `<tr><th>البريد</th><td colspan="3">${s.email}</td></tr>` : ''}
       ${s.address ? `<tr><th>العنوان</th><td colspan="3">${s.address}</td></tr>` : ''}
-      ${s.birthDate ? `<tr><th>تاريخ الميلاد</th><td colspan="3">${new Date(s.birthDate).toLocaleDateString('ar-JO')}</td></tr>` : ''}
+      ${s.birthDate ? `<tr><th>تاريخ الميلاد</th><td colspan="3">${formatDate(s.birthDate)}</td></tr>` : ''}
     </table></div>`;
     if (printSections.schedule) { const secs = getActiveSections(); if (secs.length) {
-      const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+      const fmtDate = (d: any) => d ? formatDate(d) : '—';
       const fmtEnroll = (item: any) => item.enrollDate ? fmtDate(item.enrollDate) : '—';
       const fmtEnd = (item: any) => {
         const sec2 = secToDisplay(item);
@@ -216,14 +217,14 @@ export const StudentProfilePage = () => {
     const ins = profile?.installments || [];
     if (printSections.installments && ins.length) {
       html += `<div class="section"><h4>جدول الأقساط</h4><table><thead><tr><th>القسط</th><th>المبلغ</th><th>تاريخ الاستحقاق</th><th>جهة الدفع</th><th>الحالة</th></tr></thead><tbody>`;
-      ins.forEach((inst: any) => { const st = inst.status === 'PAID' ? 'مدفوع' : inst.status === 'OVERDUE' ? 'متأخر' : 'معلق'; const cls = inst.status === 'PAID' ? 'success' : inst.status === 'OVERDUE' ? 'danger' : 'warning'; const destParts: string[] = []; if (inst.paymentDest) { destParts.push(inst.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'); const ien = inst.paymentDest === 'ENTITY' ? instEntityName(inst) : undefined; if (ien) destParts.push(ien); } html += `<tr><td>${inst.installmentNumber}</td><td>${inst.amount?.toFixed(3)} د</td><td>${new Date(inst.dueDate).toLocaleDateString('ar-JO')}</td><td>${destParts.length ? destParts.join(' / ') : '—'}</td><td><span class="badge ${cls}">${st}</span></td></tr>`; });
+      ins.forEach((inst: any) => { const st = inst.status === 'PAID' ? 'مدفوع' : inst.status === 'OVERDUE' ? 'متأخر' : 'معلق'; const cls = inst.status === 'PAID' ? 'success' : inst.status === 'OVERDUE' ? 'danger' : 'warning'; const destParts: string[] = []; if (inst.paymentDest) { destParts.push(inst.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'); const ien = inst.paymentDest === 'ENTITY' ? instEntityName(inst) : undefined; if (ien) destParts.push(ien); } html += `<tr><td>${inst.installmentNumber}</td><td>${inst.amount?.toFixed(3)} د</td><td>${formatDate(inst.dueDate)}</td><td>${destParts.length ? destParts.join(' / ') : '—'}</td><td><span class="badge ${cls}">${st}</span></td></tr>`; });
       html += `</tbody></table></div>`;
     }
     if (printSections.attendance) { const secs = getSections(); if (secs.length) {
       const atts = getAttendances();
       const pGrouped: Record<string, any[]> = {}; atts.forEach((a: any) => { if (!pGrouped[a.sectionId]) pGrouped[a.sectionId] = []; pGrouped[a.sectionId].push(a); });
       const pStats = (secId: string) => { const rows = pGrouped[secId] || []; const total = rows.length; const present = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'PRESENT').length; const absent = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'ABSENT').length; const late = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'LATE').length; const excused = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'EXCUSED').length; return { total, present, absent, late, excused, pct: total ? Math.round((present / total) * 100) : 0 }; };
-      const pFmtDate = (d: any) => d ? new Date(d).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+      const pFmtDate = (d: any) => d ? formatDate(d) : '—';
       html += `<div class="section"><h4>الحضور والغياب</h4><table><thead><tr><th>المادة</th><th>رقم الشعبة</th><th>الأيام</th><th>الوقت</th><th>من تاريخ</th><th>إلى تاريخ</th><th>عدد أيام الدوام</th><th>الحضور</th><th>الغياب</th><th>نسبة الحضور</th></tr></thead><tbody>`;
       secs.forEach((item: any) => { const sec = secToDisplay(item); const st = pStats(String(sec.id)); const enroll = item.enrollDate ? pFmtDate(item.enrollDate) : '—'; const isCur = item.status === 'ENROLLED' || item.status === 'ACTIVE'; const td = getTransferDate(sec.id, isCur); const end = td ? pFmtDate(td) : (isCur ? 'الآن' : '—'); html += `<tr><td>${sec.course?.name || sec.diploma?.name || '—'}</td><td>${sec.name || '—'}</td><td>${formatDays(sec.days)}</td><td>${sec.startTime && sec.endTime ? sec.startTime + ' - ' + sec.endTime : '—'}</td><td>${enroll}</td><td>${end}</td><td>${st.total}</td><td>${st.present}</td><td>${st.absent + st.late}</td><td>${st.total ? st.pct + '%' : '—'}</td></tr>`; });
       html += `</tbody></table></div>`; }
@@ -390,7 +391,7 @@ export const StudentProfilePage = () => {
                 <Field label="الاسم (عربي)" value={selectedStudent.fullNameAr} />
                 <Field label="الهاتف" value={`0${getPhone(selectedStudent.phones)}`} />
                 <Field label="رقم الطالب" value={selectedStudent.id} />
-                <Field label="تاريخ الميلاد" value={selectedStudent.birthDate ? new Date(selectedStudent.birthDate).toLocaleDateString('ar-JO') : null} />
+                <Field label="تاريخ الميلاد" value={selectedStudent.birthDate ? formatDate(selectedStudent.birthDate) : null} />
                 <Field label="الجنس" value={selectedStudent.gender === 'MALE' ? 'ذكر' : selectedStudent.gender === 'FEMALE' ? 'أنثى' : null} />
                 <Field label="الجنسية" value={selectedStudent.nationality === 'JO' ? 'أردني' : selectedStudent.nationality === 'OTHER' ? 'غير أردني' : selectedStudent.nationality} />
                 {selectedStudent.fullNameEn && <Field label="الاسم (إنج)" value={selectedStudent.fullNameEn} />}
@@ -410,7 +411,7 @@ export const StudentProfilePage = () => {
                 {selectedStudent.universityId && <Field label="الرقم الجامعي" value={selectedStudent.universityId} />}
                 <Field label="الحالة" value={selectedStudent.status === 'ACTIVE' ? 'مستمر' : selectedStudent.status === 'POSTPONED' ? 'مؤجل' : selectedStudent.status === 'WITHDRAWN' ? 'منسحب' : selectedStudent.status === 'CANCELED' ? 'ملغي' : selectedStudent.status === 'FINISHED' ? 'أنهى الدراسة' : selectedStudent.status} />
                 {selectedStudent.markerEmployee?.fullName && <Field label="المسوّق" value={selectedStudent.markerEmployee.fullName} />}
-                {selectedStudent.registrationDate && <Field label="تاريخ التسجيل" value={new Date(selectedStudent.registrationDate).toLocaleDateString('ar-JO')} />}
+                {selectedStudent.registrationDate && <Field label="تاريخ التسجيل" value={formatDate(selectedStudent.registrationDate)} />}
               </div>
             </div>
 
@@ -479,7 +480,7 @@ export const StudentProfilePage = () => {
                     <tr key={inst.id}>
                       <td style={tdStyle}>قسط {inst.installmentNumber}</td>
                       <td style={tdStyle}>{inst.amount?.toFixed(3)} د</td>
-                      <td style={tdStyle}>{new Date(inst.dueDate).toLocaleDateString('ar-JO')}</td>
+                      <td style={tdStyle}>{formatDate(inst.dueDate)}</td>
                       <td style={tdStyle}>
                         {inst.paymentDest ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -547,10 +548,10 @@ export const StudentProfilePage = () => {
                             <td style={tdStyle}>{formatDays(sec.days)}</td>
                             <td style={tdStyle}>{sec.startTime && sec.endTime ? `${sec.startTime} - ${sec.endTime}` : '—'}</td>
                             <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
-                              {enrollDate ? new Date(enrollDate).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
+                              {enrollDate ? formatDate(enrollDate) : '—'}
                             </td>
                             <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
-                              {transferDate ? new Date(transferDate).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' }) : isCurrent ? 'الآن' : '—'}
+                              {transferDate ? formatDate(transferDate) : isCurrent ? 'الآن' : '—'}
                             </td>
                             <td style={tdStyle}>{st.total}</td>
                             <td style={tdStyle}>{st.present}</td>
@@ -609,7 +610,7 @@ export const StudentProfilePage = () => {
                                           <tr key={r.key}>
                                             <td style={{ ...tdStyle, color: 'var(--text-muted)', fontSize: '0.7rem' }}>{i + 1}</td>
                                             <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontSize: '0.72rem' }}>
-                                              {r.date.toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                              {formatDate(r.date)}
                                             </td>
                                             <td style={tdStyle}>{r.dayName}</td>
                                             <td style={tdStyle}>
@@ -676,7 +677,7 @@ export const StudentProfilePage = () => {
               <div style={{ textAlign: 'right', fontSize: '0.82rem', lineHeight: 2 }}>
                 <div><strong>الحالة:</strong> {selectedStudent.status === 'ACTIVE' ? 'مستمر' : selectedStudent.status}</div>
                 {selectedStudent.email && <div><strong>البريد:</strong> {selectedStudent.email}</div>}
-                {selectedStudent.birthDate && <div><strong>تاريخ الميلاد:</strong> {new Date(selectedStudent.birthDate).toLocaleDateString('ar-JO')}</div>}
+                {selectedStudent.birthDate && <div><strong>تاريخ الميلاد:</strong> {formatDate(selectedStudent.birthDate)}</div>}
                 {selectedStudent.address && <div><strong>العنوان:</strong> {selectedStudent.address}</div>}
                 {secList.length > 0 && <div><strong>المسجل في:</strong> {secList.map((s: any) => s.course?.name || s.diploma?.name).join('، ')}</div>}
               </div>

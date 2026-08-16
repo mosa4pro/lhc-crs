@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { LearningTypeBadge } from '../components/LearningTypeBadge';
+import { formatDate } from '../utils/dateFormat';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const API = API_BASE + '/api';
@@ -118,7 +119,6 @@ export const StudentPortalPage = () => {
     try { return (typeof phones === 'string' ? JSON.parse(phones) : phones)?.[0] || '—'; }
     catch { return '—'; }
   };
-  const formatDate = (d: string) => d ? new Date(d).toLocaleDateString('ar-JO') : '—';
   const handleLogout = () => { logout(); };
   const copyUsername = async () => {
     try {

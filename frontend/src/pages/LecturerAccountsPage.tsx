@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronUp, Wallet, CreditCard, Search, FileDown,
   Building2, Phone, Mail, CalendarDays, X
 } from 'lucide-react';
+import { formatDate } from '../utils/dateFormat';
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { PermissionGuard } from '../components/PermissionGuard';
@@ -275,7 +276,7 @@ export const LecturerAccountsPage = () => {
                                 </td>
                                 <td style={{ fontSize: '0.75rem' }}>{payment?.paymentMethod || '—'}</td>
                                 <td style={{ fontSize: '0.75rem' }}>
-                                  {payment?.paidDate ? new Date(payment.paidDate).toLocaleDateString('ar-IQ') : '—'}
+                                  {payment?.paidDate ? formatDate(payment.paidDate) : '—'}
                                 </td>
                                 <td>
                                   {(!payment || payment.status !== 'PAID') && hasPermission('finance.accounts') && (
@@ -326,7 +327,7 @@ export const LecturerAccountsPage = () => {
                                     </span>
                                   </td>
                                   <td>{p.paymentMethod || '—'}</td>
-                                  <td>{p.paidDate ? new Date(p.paidDate).toLocaleDateString('ar-IQ') : '—'}</td>
+                                  <td>{p.paidDate ? formatDate(p.paidDate) : '—'}</td>
                                   <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
                                 </tr>
                               ))}

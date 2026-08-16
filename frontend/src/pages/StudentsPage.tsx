@@ -7,6 +7,7 @@ import {
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { DeepSearchModal, type DeepSearchFilters } from '../components/DeepSearchModal';
+import { DateField } from '../components/DateField';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { LearningTypeBadge } from '../components/LearningTypeBadge';
 import { ViewToggleButton as ViewToggleButtonComp } from '../components/ViewToggleButton';
@@ -1048,12 +1049,10 @@ export const StudentsPage = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label"><span className="required-star">*</span>تاريخ الميلاد</label>
-            <input
-              type="date"
-              className={`glass-input ${formErrors.dob ? 'error-field' : ''}`}
+            <DateField
               value={form.dob ? String(form.dob).split('T')[0] : ''}
-              data-field="dob"
-              onChange={e => { setForm({ ...form, dob: e.target.value }); clearError('dob'); }}
+              onChange={v => { setForm({ ...form, dob: v }); clearError('dob'); }}
+              maxYear={new Date().getFullYear()}
             />
             {formErrors.dob && <div style={{ color: 'var(--danger)', fontSize: '0.8rem', marginTop: 4 }}>⚠️ {formErrors.dob}</div>}
           </div>
