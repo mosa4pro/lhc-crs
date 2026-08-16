@@ -87,13 +87,14 @@ export const StudentProfilePage = () => {
 
   const handleDeepSearch = (student: any) => { selectStudent(student); setIsDeepOpen(false); };
 
-  // Auto-select student from shared link
-  const shareId = searchParams.get('shareId');
+  // Auto-select student from shared link or quick access (?studentId=)
+  const sidParam = searchParams.get('studentId') || searchParams.get('shareId');
   useEffect(() => {
-    if (shareId) {
-      apiFetch(`/students/${shareId}`).then(s => { if (s) selectStudent(s); }).catch(() => {});
+    if (sidParam) {
+      apiFetch(`/students/${sidParam}`).then(s => { if (s) selectStudent(s); }).catch(() => {});
     }
-  }, [shareId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidParam]);
 
   const handleShare = () => {
     if (!selectedStudent) return;

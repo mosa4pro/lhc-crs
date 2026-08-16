@@ -738,6 +738,13 @@ model Installment {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([subscriptionId])
+  @@index([studentId, status])
+  @@index([status, dueDate])
+  @@index([paymentDest])
+  @@index([createdAt])
 }
 
 // ==========================================

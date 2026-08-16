@@ -49,16 +49,105 @@ export async function generateInstallments(
   return installments;
 }
 
-// ==================== GET ALL INSTALLMENTS ====================
+// ==================== INSTALLMENT FILTER BUILDER (shared) ====================
+// Builds a Prisma `where` from query params (filters only, no pagination/sort).
+// Used by the list + stats endpoints so cards and table always agree.
+async function buildInstallmentWhere(q: Record<string, any>): Promise<any> {
+  const where: any = {};
+  const { status, studentId, subscriptionId, subscriptionType, paymentDest, dateFrom, dateTo, query, entityId, courseId, diplomaId } = q;
+
+  if (status) where.status = status as string;
+  if (studentId) where.studentId = studentId as string;
+  if (subscriptionId) where.subscriptionId = subscriptionId as string;
+  if (subscriptionType) where.subscriptionType = subscriptionType as string;
+  if (paymentDest) where.paymentDest = paymentDest as string;
+
+  if (dateFrom || dateTo) {
+    where.dueDate = {};
+    if (dateFrom) where.dueDate.gte = new Date(dateFrom as string);
+    if (dateTo) {
+      const d = new Date(dateTo as string);
+      d.setHours(23, 59, 59, 999);
+      where.dueDate.lte = d;
+    }
+  }
+
+  if (query) {
+    const s = String(query).trim();
+    if (s.length > 0) {
+      where.student = {
+        is: {
+          OR: [
+            { fullNameAr: { contains: s, mode: 'insensitive' } },
+            { fullNameEn: { contains: s, mode: 'insensitive' } },
+            { id: { contains: s } }
+          ]
+        }
+      };
+    }
+  }
+
+  // Resolve educational-entity / program filters to subscription ids (no N+1:
+  // two batched queries, then a single `in` filter).
+  let subIds: number[] | null = null;
+  if (entityId) {
+    const [d, c] = await Promise.all([
+      prisma.diplomaSubscription.findMany({ where: { entityId: Number(entityId) }, select: { id: true } }),
+      prisma.courseSubscription.findMany({ where: { entityId: Number(entityId) }, select: { id: true } })
+    ]);
+    subIds = [...d.map(x => x.id), ...c.map(x => x.id)];
+  }
+  if (courseId || diplomaId) {
+    const ids: number[] = [];
+    if (diplomaId) {
+      const d = await prisma.diplomaSubscription.findMany({ where: { diplomaId: String(diplomaId) }, select: { id: true } });
+      ids.push(...d.map(x => x.id));
+    }
+    if (courseId) {
+      const c = await prisma.courseSubscription.findMany({ where: { courseId: String(courseId) }, select: { id: true } });
+      ids.push(...c.map(x => x.id));
+    }
+    subIds = subIds === null ? ids : subIds.filter(x => ids.includes(x));
+  }
+  if (subIds !== null) {
+    if (subIds.length === 0) {
+      where.subscriptionId = '__none__'; // force empty result
+    } else {
+      where.subscriptionId = { in: subIds.map(String) };
+    }
+  }
+
+  return where;
+}
+
+// Resolves program + entity names for a page of installments via two batched queries.
+async function attachSubscriptionMeta(items: any[]) {
+  const ids = items
+    .map(i => Number(i.subscriptionId))
+    .filter(n => !Number.isNaN(n) && Number.isInteger(n));
+  if (ids.length === 0) return items;
+
+  const [d, c] = await Promise.all([
+    prisma.diplomaSubscription.findMany({ where: { id: { in: ids } }, select: { id: true, diploma: { select: { name: true } }, entity: { select: { name: true } } } }),
+    prisma.courseSubscription.findMany({ where: { id: { in: ids } }, select: { id: true, course: { select: { name: true } }, entity: { select: { name: true } } } })
+  ]);
+  const map = new Map<string, { programName: string; entityName: string }>();
+  for (const s of d) map.set(String(s.id), { programName: s.diploma?.name || 'دبلوم', entityName: s.entity?.name || '' });
+  for (const s of c) map.set(String(s.id), { programName: s.course?.name || 'دورة', entityName: s.entity?.name || '' });
+
+  return items.map(i => {
+    const m = map.get(String(i.subscriptionId));
+    return { ...i, remaining: Math.max(0, i.amount - i.paidAmount), programName: m?.programName || null, entityName: m?.entityName || null };
+  });
+}
+
+// ==================== GET ALL INSTALLMENTS (paginated / filtered / sorted) ====================
+// Backward compatible: when no `page`/`pageSize` are provided it returns a plain array.
 router.get('/', authMiddleware, requirePermission('finance.installments'), async (req, res) => {
   try {
     const { status, studentId, subscriptionId, subscriptionType, overdueOnly, upcomingDays } = req.query;
-    const where: any = {};
+    const where = await buildInstallmentWhere(req.query);
 
-    if (status) where.status = status;
-    if (studentId) where.studentId = studentId as string;
-    if (subscriptionId) where.subscriptionId = subscriptionId as string;
-    if (subscriptionType) where.subscriptionType = subscriptionType as string;
     if (overdueOnly === 'true') {
       where.status = 'PENDING';
       where.dueDate = { lt: new Date() };
@@ -70,25 +159,95 @@ router.get('/', authMiddleware, requirePermission('finance.installments'), async
       where.status = 'PENDING';
     }
 
-    const installments = await prisma.installment.findMany({
-      where,
-      include: { student: { select: { id: true, fullNameAr: true, fullNameEn: true, phones: true } } },
-      orderBy: { dueDate: 'asc' }
-    });
+    // Auto-mark overdue — bounded to the returned rows only (cheap at scale,
+    // keeps displayed status correct for the visible page).
+    const markOverdue = (rows: any[]) => {
+      const now = new Date();
+      const overdueIds = rows
+        .filter(i => i.status === 'PENDING' && new Date(i.dueDate) < now)
+        .map(i => i.id);
+      if (overdueIds.length > 0) {
+        prisma.installment.updateMany({ where: { id: { in: overdueIds } }, data: { status: 'OVERDUE' } })
+          .then(() => {}).catch(() => {});
+      }
+      return rows.map(i => overdueIds.includes(i.id) ? { ...i, status: 'OVERDUE' } : i);
+    };
 
-    // Auto-mark overdue
-    const now = new Date();
-    const overdueIds = installments
-      .filter(i => i.status === 'PENDING' && new Date(i.dueDate) < now)
-      .map(i => i.id);
-    if (overdueIds.length > 0) {
-      await prisma.installment.updateMany({ where: { id: { in: overdueIds } }, data: { status: 'OVERDUE' } });
+    const sortFieldMap: Record<string, string> = { dueDate: 'dueDate', amount: 'amount', paidAmount: 'paidAmount', createdAt: 'createdAt', installmentNumber: 'installmentNumber' };
+    const sf = sortFieldMap[String(req.query.sortBy || 'dueDate')] || 'dueDate';
+    const orderBy: any = { [sf]: String(req.query.sortDir) === 'desc' ? 'desc' : 'asc' };
+
+    const hasPage = req.query.page !== undefined && req.query.page !== '';
+    if (!hasPage) {
+      const installments = await prisma.installment.findMany({
+        where,
+        include: { student: { select: { id: true, fullNameAr: true, fullNameEn: true, phones: true } } },
+        orderBy
+      });
+      return res.json(markOverdue(installments));
     }
 
-    return res.json(installments);
+    const page = Math.max(1, parseInt(String(req.query.page)) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(String(req.query.pageSize)) || 20));
+
+    const [total, items] = await Promise.all([
+      prisma.installment.count({ where }),
+      prisma.installment.findMany({
+        where,
+        include: { student: { select: { id: true, fullNameAr: true, fullNameEn: true, phones: true } } },
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize
+      })
+    ]);
+
+    const out = await attachSubscriptionMeta(markOverdue(items));
+    return res.json({ items: out, total, page, pageSize, totalPages: Math.ceil(total / pageSize) });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'خطأ في جلب الأقساط' });
+  }
+});
+
+// ==================== STATS (filter-aware cards for the installments page) ====================
+// Aggregates only — no row materialization — so it stays fast at scale.
+router.get('/stats', authMiddleware, requirePermission('finance.installments'), async (req, res) => {
+  try {
+    const where = await buildInstallmentWhere(req.query);
+    const now = new Date();
+    const statusFilter = (req.query.status as string) || '';
+
+    // The overdue card always means "genuinely overdue". It respects the active
+    // status filter exactly: OVERDUE → those rows, PENDING → past-due pending,
+    // other statuses → none (a paid/partial set has nothing overdue).
+    let overdueWhere: any;
+    if (statusFilter === 'OVERDUE') {
+      overdueWhere = where;
+    } else if (statusFilter === 'PENDING') {
+      overdueWhere = { ...where, dueDate: { lt: now } };
+    } else if (statusFilter) {
+      overdueWhere = { ...where, id: -1 }; // PAID/PARTIAL → nothing overdue
+    } else {
+      overdueWhere = { ...where, OR: [{ status: 'OVERDUE' }, { status: 'PENDING', dueDate: { lt: now } }] };
+    }
+
+    const [allAgg, overdueAgg] = await Promise.all([
+      prisma.installment.aggregate({ where, _count: true, _sum: { amount: true, paidAmount: true } }),
+      prisma.installment.aggregate({ where: overdueWhere, _count: true, _sum: { amount: true, paidAmount: true } })
+    ]);
+
+    const rem = (a: any) => Math.max(0, (a._sum?.amount || 0) - (a._sum?.paidAmount || 0));
+    return res.json({
+      totalInstallments: allAgg._count,
+      totalAmount: allAgg._sum?.amount || 0,
+      totalPaid: allAgg._sum?.paidAmount || 0,
+      totalRemaining: rem(allAgg),
+      overdueCount: overdueAgg._count,
+      overdueAmount: rem(overdueAgg)
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'خطأ في الملخص' });
   }
 });
 
@@ -408,6 +567,64 @@ router.delete('/:id', authMiddleware, requirePermission('finance.installments'),
     return res.json({ success: true });
   } catch {
     return res.status(400).json({ error: 'فشل حذف القسط' });
+  }
+});
+
+// ==================== GET INSTALLMENT DETAIL (lazy, includes payments + subscription meta) ====================
+router.get('/:id', authMiddleware, requirePermission('finance.installments'), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id as string);
+    const inst = await prisma.installment.findUnique({
+      where: { id },
+      include: { student: { select: { id: true, fullNameAr: true, fullNameEn: true, phones: true } } }
+    });
+    if (!inst) return res.status(404).json({ error: 'القسط غير موجود' });
+
+    const transactions = await prisma.financialTransaction.findMany({
+      where: { installmentId: id },
+      include: { student: { select: { id: true, fullNameAr: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    let programName: string | null = null;
+    let entityName: string | null = null;
+    let subscription: any = null;
+    const sid = Number(inst.subscriptionId);
+    if (!Number.isNaN(sid) && Number.isInteger(sid)) {
+      if (inst.subscriptionType === 'DIPLOMA') {
+        const s = await prisma.diplomaSubscription.findUnique({
+          where: { id: sid },
+          select: { id: true, totalCost: true, status: true, installmentsCount: true, diploma: { select: { name: true } }, entity: { select: { name: true } } }
+        });
+        if (s) {
+          programName = s.diploma?.name || null;
+          entityName = s.entity?.name || null;
+          subscription = { id: s.id, totalCost: s.totalCost, status: s.status, installmentsCount: s.installmentsCount };
+        }
+      } else if (inst.subscriptionType === 'COURSE') {
+        const s = await prisma.courseSubscription.findUnique({
+          where: { id: sid },
+          select: { id: true, totalCost: true, status: true, installmentsCount: true, course: { select: { name: true } }, entity: { select: { name: true } } }
+        });
+        if (s) {
+          programName = s.course?.name || null;
+          entityName = s.entity?.name || null;
+          subscription = { id: s.id, totalCost: s.totalCost, status: s.status, installmentsCount: s.installmentsCount };
+        }
+      }
+    }
+
+    return res.json({
+      ...inst,
+      remaining: Math.max(0, inst.amount - inst.paidAmount),
+      programName,
+      entityName,
+      subscription,
+      transactions
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'خطأ في جلب تفاصيل القسط' });
   }
 });
 

@@ -9,6 +9,7 @@ import { DeepSearchModal } from '../components/DeepSearchModal';
 import { DateField } from '../components/DateField';
 import { formatDate } from '../utils/dateFormat';
 import { cleanNum, toNumber } from '../utils/arabicNumbers';
+import { useSearchParams } from 'react-router-dom';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const API = API_BASE + '/api';
@@ -236,6 +237,16 @@ export const SubscriptionPage = () => {
   };
 
   const handleDeepSelect = (st: any) => selectStudent(st);
+
+  /* ── Quick access: preselected student from /installments?studentId=… ── */
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const sid = searchParams.get('studentId');
+    if (sid) {
+      apiFetch(`/students/${sid}`).then((s: any) => { if (s) selectStudent(s); }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handlePin = () => {
     if (!isPinned) {
