@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, User, FileText, Calendar, CreditCard, GraduationCap, Printer, Filter, Image, MessageCircle, ArrowLeftRight, Wallet } from 'lucide-react';
+import { Search, User, FileText, Calendar, CreditCard, GraduationCap, Printer, Filter, Image, MessageCircle, ArrowLeftRight, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
 import { useApi, useAuth, fileUrl } from '../context/AuthContext';
 import { DeepSearchModal } from '../components/DeepSearchModal';
 import { LearningTypeBadge, learningTypeLabel, modalityLabel } from '../components/LearningTypeBadge';
@@ -48,6 +48,7 @@ export const StudentProfilePage = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [isDeepOpen, setIsDeepOpen] = useState(false);
   const [showCard, setShowCard] = useState(false);
+  const [openAttSec, setOpenAttSec] = useState<number | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const [printSections, setPrintSections] = useState<Record<string, boolean>>({ subs: true, installments: true, notes: true, schedule: true, attendance: true });
 
@@ -128,14 +129,55 @@ export const StudentProfilePage = () => {
 
   const attGrouped: Record<string, any[]> = {};
   attList.forEach((a: any) => { if (!attGrouped[a.sectionId]) attGrouped[a.sectionId] = []; attGrouped[a.sectionId].push(a); });
+  const attStatus = (r: any) => String(r?.status || '').toUpperCase();
   const attStats = (secId: string) => {
     const rows = attGrouped[secId] || [];
     const total = rows.length;
-    const present = rows.filter((r: any) => r.status === 'present').length;
-    const absent = rows.filter((r: any) => r.status === 'absent').length;
-    const late = rows.filter((r: any) => r.status === 'late').length;
-    const excused = rows.filter((r: any) => r.status === 'excused').length;
+    const present = rows.filter((r: any) => attStatus(r) === 'PRESENT').length;
+    const absent = rows.filter((r: any) => attStatus(r) === 'ABSENT').length;
+    const late = rows.filter((r: any) => attStatus(r) === 'LATE').length;
+    const excused = rows.filter((r: any) => attStatus(r) === 'EXCUSED').length;
     return { total, present, absent, late, excused, pct: total ? Math.round((present / total) * 100) : 0 };
+  };
+
+  const ATT_STATUS_LABEL: Record<string, { label: string; cls: string }> = {
+    PRESENT: { label: 'حاضر', cls: 'success' },
+    ABSENT: { label: 'غائب', cls: 'danger' },
+    LATE: { label: 'متأخر', cls: 'warning' },
+    EXCUSED: { label: 'بعذر', cls: 'secondary' },
+  };
+  const parseDaysArr = (days: any): string[] => {
+    if (!days) return [];
+    try {
+      const d = typeof days === 'string' ? JSON.parse(days) : days;
+      if (Array.isArray(d)) return d.map((x: string) => String(x).trim().toUpperCase());
+      return [String(d).trim().toUpperCase()];
+    } catch { return []; }
+  };
+  const attDetailRows = (item: any) => {
+    const sec = secToDisplay(item);
+    const dayCodes = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const secDays = parseDaysArr(sec.days);
+    if (!secDays.length) return [];
+    const byDate = new Map<string, any>();
+    (attGrouped[String(sec.id)] || []).forEach((r: any) => { byDate.set(new Date(r.date).toISOString().slice(0, 10), r); });
+    const isCurrent = item.status === 'ENROLLED' || item.status === 'ACTIVE';
+    const transferDate = getTransferDate(sec.id, isCurrent);
+    const start = item.enrollDate ? new Date(item.enrollDate) : new Date(sec.createdAt || 0);
+    const end = transferDate ? new Date(transferDate) : new Date();
+    if (start > end) return [];
+    const rows: { key: string; date: Date; dayName: string; record: any }[] = [];
+    const d = new Date(start);
+    d.setHours(0, 0, 0, 0);
+    while (d <= end) {
+      const code = dayCodes[d.getDay()];
+      if (secDays.includes(code)) {
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        rows.push({ key, date: new Date(d), dayName: DAY_ABBR[code] || code, record: byDate.get(key) || null });
+      }
+      d.setDate(d.getDate() + 1);
+    }
+    return rows.reverse();
   };
 
   const buildPrintHTML = () => {
@@ -180,7 +222,7 @@ export const StudentProfilePage = () => {
     if (printSections.attendance) { const secs = getSections(); if (secs.length) {
       const atts = getAttendances();
       const pGrouped: Record<string, any[]> = {}; atts.forEach((a: any) => { if (!pGrouped[a.sectionId]) pGrouped[a.sectionId] = []; pGrouped[a.sectionId].push(a); });
-      const pStats = (secId: string) => { const rows = pGrouped[secId] || []; const total = rows.length; const present = rows.filter((r: any) => r.status === 'present').length; const absent = rows.filter((r: any) => r.status === 'absent').length; const late = rows.filter((r: any) => r.status === 'late').length; const excused = rows.filter((r: any) => r.status === 'excused').length; return { total, present, absent, late, excused, pct: total ? Math.round((present / total) * 100) : 0 }; };
+      const pStats = (secId: string) => { const rows = pGrouped[secId] || []; const total = rows.length; const present = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'PRESENT').length; const absent = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'ABSENT').length; const late = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'LATE').length; const excused = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'EXCUSED').length; return { total, present, absent, late, excused, pct: total ? Math.round((present / total) * 100) : 0 }; };
       const pFmtDate = (d: any) => d ? new Date(d).toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
       html += `<div class="section"><h4>الحضور والغياب</h4><table><thead><tr><th>المادة</th><th>رقم الشعبة</th><th>الأيام</th><th>الوقت</th><th>من تاريخ</th><th>إلى تاريخ</th><th>عدد أيام الدوام</th><th>الحضور</th><th>الغياب</th><th>نسبة الحضور</th></tr></thead><tbody>`;
       secs.forEach((item: any) => { const sec = secToDisplay(item); const st = pStats(String(sec.id)); const enroll = item.enrollDate ? pFmtDate(item.enrollDate) : '—'; const isCur = item.status === 'ENROLLED' || item.status === 'ACTIVE'; const td = getTransferDate(sec.id, isCur); const end = td ? pFmtDate(td) : (isCur ? 'الآن' : '—'); html += `<tr><td>${sec.course?.name || sec.diploma?.name || '—'}</td><td>${sec.name || '—'}</td><td>${formatDays(sec.days)}</td><td>${sec.startTime && sec.endTime ? sec.startTime + ' - ' + sec.endTime : '—'}</td><td>${enroll}</td><td>${end}</td><td>${st.total}</td><td>${st.present}</td><td>${st.absent + st.late}</td><td>${st.total ? st.pct + '%' : '—'}</td></tr>`; });
@@ -491,6 +533,7 @@ export const StudentProfilePage = () => {
                         const isCurrent = item.status === 'ENROLLED' || item.status === 'ACTIVE';
                         const transferDate = getTransferDate(sec.id, isCurrent);
                         return (
+                          <>
                           <tr key={sec.id}>
                             <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
                               {sec.course?.name || sec.diploma?.name || '—'}
@@ -506,13 +549,86 @@ export const StudentProfilePage = () => {
                             </td>
                             <td style={tdStyle}>{st.total}</td>
                             <td style={tdStyle}>{st.present}</td>
-                            <td style={tdStyle}>{st.absent + st.late}</td>
+                            <td style={tdStyle}>
+                              <button onClick={() => setOpenAttSec(openAttSec === sec.id ? null : sec.id)}
+                                title="عرض تفاصيل أيام الحضور والغياب"
+                                style={{
+                                  background: 'none', border: '1px solid var(--glass-border)', borderRadius: 8,
+                                  padding: '4px 10px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700,
+                                  color: st.absent + st.late > 0 ? 'var(--danger)' : 'var(--text-muted)',
+                                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  transition: 'all 0.15s', whiteSpace: 'nowrap',
+                                }}>
+                                {st.absent + st.late}
+                                {openAttSec === sec.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                              </button>
+                            </td>
                             <td style={tdStyle}>
                               <span style={{ color: st.total ? (st.pct >= 75 ? 'var(--success-color)' : 'var(--danger-color)') : 'var(--text-muted)', fontWeight: 600 }}>
                                 {st.total ? `${st.pct}%` : '—'}
                               </span>
                             </td>
                           </tr>
+                          {openAttSec === sec.id && (
+                            <tr key={`att-detail-${sec.id}`}>
+                              <td colSpan={10} style={{ background: 'var(--glass-bg)', padding: '12px 14px', border: '1px solid var(--glass-border)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                                    سجل الحضور والغياب — {sec.course?.name || sec.diploma?.name || '—'} ({sec.name || '—'})
+                                  </span>
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                    {st.total} يوم مسجل • حضور {st.present} • غياب {st.absent} • متأخر {st.late} • بعذر {st.excused}
+                                  </span>
+                                </div>
+                                <div style={{ overflowX: 'auto', maxHeight: 360, overflowY: 'auto' }}>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                                    <thead>
+                                      <tr>
+                                        <th style={thStyle}>#</th>
+                                        <th style={thStyle}>التاريخ</th>
+                                        <th style={thStyle}>اليوم</th>
+                                        <th style={thStyle}>الحالة</th>
+                                        <th style={thStyle}>ملاحظات</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {attDetailRows(item).length === 0 ? (
+                                        <tr>
+                                          <td colSpan={5} style={{ ...tdStyle, color: 'var(--text-muted)', padding: '18px' }}>
+                                            لا توجد أيام دوام لهذه الشعبة
+                                          </td>
+                                        </tr>
+                                      ) : attDetailRows(item).map((r: any, i: number) => {
+                                        const stInfo = r.record ? ATT_STATUS_LABEL[attStatus(r.record)] : null;
+                                        return (
+                                          <tr key={r.key}>
+                                            <td style={{ ...tdStyle, color: 'var(--text-muted)', fontSize: '0.7rem' }}>{i + 1}</td>
+                                            <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontSize: '0.72rem' }}>
+                                              {r.date.toLocaleDateString('ar-JO', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                            </td>
+                                            <td style={tdStyle}>{r.dayName}</td>
+                                            <td style={tdStyle}>
+                                              {stInfo ? (
+                                                <span className={`badge ${stInfo.cls}`} style={{ fontSize: '0.65rem' }}>{stInfo.label}</span>
+                                              ) : (
+                                                <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontStyle: 'italic' }}>
+                                                  لم يتم تسجيل الحضور بعد
+                                                </span>
+                                              )}
+                                            </td>
+                                            <td style={{ ...tdStyle, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                              {r.record?.notes || '—'}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </>
                         );
                       })}
                     </tbody>
