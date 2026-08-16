@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search, CreditCard, Plus, X, RefreshCw,
   Clock, FileText, Trash2, Save, Printer,
-  Calendar, AlertTriangle, Award,
-  ChevronRight, ChevronLeft, SlidersHorizontal, ExternalLink, Wallet, ListChecks, User, Filter, Banknote, BookOpen, GraduationCap
+  Calendar, AlertTriangle, Award, Minus,
+  ChevronLeft, ExternalLink, Wallet, User, Banknote, GraduationCap, BookOpen, Layers, CheckCircle2
 } from 'lucide-react';
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
@@ -18,6 +18,7 @@ interface Inst { id: number; studentId: string; subscriptionId: string; subscrip
 interface Student { id: string; fullNameAr: string; fullNameEn?: string; phones?: any }
 
 const ST: Record<string, { label: string; cls: string }> = { PENDING: { label: 'بانتظار', cls: 'warning' }, PAID: { label: 'مدفوع', cls: 'success' }, PARTIAL: { label: 'دفع جزئي', cls: 'teal' }, OVERDUE: { label: 'متأخر', cls: 'danger' } };
+const SUB_ST: Record<string, { label: string; cls: string }> = { ACTIVE: { label: 'نشط', cls: 'success' }, GRADUATED: { label: 'متخرج', cls: 'primary' }, WITHDRAWN: { label: 'منسحب', cls: 'warning' }, CANCELED: { label: 'ملغي', cls: 'danger' } };
 const PML: Record<string, string> = { CASH: 'نقدي', BANK: 'حوالة بنكية', CARD: 'بطاقة', TRANSFER: 'تحويل إلكتروني', WALLET: 'محفظة إلكترونية', CLICK: 'حوالة كليك', ENTITY: 'جهة', CHECK: 'شيك' };
 const WL: Record<string, string> = { UMNIAH: 'أمنية كاش', ORANGE: 'أورانج موني', ZAIN: 'زين كاش', DINARAK: 'دينارك', ALAWNEH: 'علاونه' };
 const BL: Record<string, string> = { Jordan_Ahli: 'الأهلي الأردني', Arab_Bank: 'العربي', Housing_Bank: 'الإسكان', Cairo_Amman: 'القاهرة عمان', Jordan_Kuwait: 'الأردني الكويتي', Islamic_Bank: 'الإسلامي الأردني', Safwa_Islamic: 'صفوة الإسلامي', Etihad: 'الاتحاد', Societe_Generale: 'سوسيتيه جنرال', Bank_of_Jordan: 'الأردن', Investbank: 'الاستثمار', Jordan_Commercial: 'التجاري الأردني', ABC: 'ABC', Standard_Chartered: 'ستاندارد تشارترد', BLOM: 'بلوم', Al_Rajhi: 'الراجحي', OTHER: 'آخر' };
@@ -30,14 +31,6 @@ const CATEGORIES = [
 ] as const;
 const CAT_MAP = Object.fromEntries(CATEGORIES.map(c => [c.value, c])) as Record<string, typeof CATEGORIES[number]>;
 
-const STATUS_TABS = [
-  { key: '', label: 'الكل' },
-  { key: 'PENDING', label: 'بانتظار' },
-  { key: 'OVERDUE', label: 'متأخر' },
-  { key: 'PARTIAL', label: 'جزئي' },
-  { key: 'PAID', label: 'مدفوع' },
-];
-
 const subName = (sub: Sub) => sub.diploma?.name || sub.course?.name || `#${sub.id}`;
 const getPhone = (p: any) => { try { return (typeof p === 'string' ? JSON.parse(p) : p)?.[0] || '—'; } catch { return '—'; } };
 const remOf = (i: Inst) => Math.max(0, (i.amount || 0) - (i.paidAmount || 0));
@@ -47,9 +40,6 @@ const catLabel = (inst: Inst) => {
 };
 const fmt = (n: number | undefined | null) => (n || 0).toFixed(2);
 const num = (n: number | undefined | null) => n ?? 0;
-
-interface Filters { query: string; status: string; subscriptionType: string; paymentDest: string; entityId: string; courseId: string; diplomaId: string; dateFrom: string; dateTo: string; studentId: string; }
-const EMPTY_FILTERS: Filters = { query: '', status: '', subscriptionType: '', paymentDest: '', entityId: '', courseId: '', diplomaId: '', dateFrom: '', dateTo: '', studentId: '' };
 
 const sx = { position: 'fixed' as const, inset: 0, zIndex: 2147483647, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)', display: 'flex' as const, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 20 };
 const mbox: React.CSSProperties = { background: 'var(--modal-bg)', backdropFilter: 'blur(32px) saturate(180%)', WebkitBackdropFilter: 'blur(32px) saturate(180%)', borderRadius: 22, border: '1px solid var(--glass-border)', boxShadow: '0 32px 80px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.05)', direction: 'rtl' };
@@ -66,30 +56,20 @@ export const FinInstallmentsPage = () => {
   const canEdit = hasPermission('finance.installments');
   const canPay = hasPermission('finance.receipts');
 
-  /* ── Filters + pagination ── */
-  const [f, setF] = useState<Filters>(EMPTY_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [sortBy, setSortBy] = useState('dueDate');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [rows, setRows] = useState<Inst[]>([]);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [summary, setSummary] = useState<any>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(true);
-
-  /* ── Student search (filter) ── */
+  /* ── Student selection ── */
   const [fStudentName, setFStudentName] = useState('');
   const [stuResults, setStuResults] = useState<any[]>([]);
   const [showStuDrop, setShowStuDrop] = useState(false);
   const stuRef = useRef<HTMLDivElement>(null);
+  const [student, setStudent] = useState<any>(null);
+  const [studentLoading, setStudentLoading] = useState(false);
 
-  /* ── Dropdown lists for filters ── */
-  const [entities, setEntities] = useState<any[]>([]);
-  const [courses, setCourses] = useState<any[]>([]);
-  const [diplomas, setDiplomas] = useState<any[]>([]);
+  /* ── Subscriptions + installments (workspace) ── */
+  const [subs, setSubs] = useState<any[]>([]);
+  const [subsLoading, setSubsLoading] = useState(false);
+  const [selSub, setSelSub] = useState<any>(null);
+  const [subInstalls, setSubInstalls] = useState<Inst[]>([]);
+  const [subInstLoading, setSubInstLoading] = useState(false);
 
   /* ── Detail drawer (lazy) ── */
   const [selId, setSelId] = useState<number | null>(null);
@@ -127,8 +107,7 @@ export const FinInstallmentsPage = () => {
   const [payNotes, setPayNotes] = useState('');
   const [payLoading, setPayLoading] = useState(false);
 
-  /* ── Schedule modal ── */
-  const [showSchedule, setShowSchedule] = useState(false);
+  /* ── Reschedule panel (fixed on the right) ── */
   const [scheduleCount, setScheduleCount] = useState(0);
   const [scheduleMin, setScheduleMin] = useState(1);
   const [scheduleTotal, setScheduleTotal] = useState(0);
@@ -137,28 +116,6 @@ export const FinInstallmentsPage = () => {
   const [isDeep, setIsDeep] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  /* ── Load dropdown lists once ── */
-  useEffect(() => {
-    Promise.all([
-      apiFetch('/educational-entities').catch(() => []),
-      apiFetch('/courses').catch(() => []),
-      apiFetch('/diplomas').catch(() => [])
-    ]).then(([e, c, d]) => {
-      setEntities(Array.isArray(e) ? e : []);
-      setCourses(Array.isArray(c) ? c : []);
-      setDiplomas(Array.isArray(d) ? d : []);
-    });
-  }, [apiFetch]);
-
-  /* ── Preselect student from ?studentId= (quick access) ── */
-  useEffect(() => {
-    const sid = searchParams.get('studentId');
-    if (sid) {
-      setF(prev => ({ ...prev, studentId: sid }));
-      apiFetch(`/students/${sid}`).then((s: any) => { if (s) setFStudentName(s.fullNameAr); }).catch(() => {});
-    }
-  }, [searchParams, apiFetch]);
-
   /* Close student dropdown on outside click */
   useEffect(() => {
     const h = (e: MouseEvent) => { if (stuRef.current && !stuRef.current.contains(e.target as Node)) setShowStuDrop(false); };
@@ -166,55 +123,116 @@ export const FinInstallmentsPage = () => {
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const buildParams = useCallback((withPage: boolean) => {
-    const p = new URLSearchParams();
-    if (withPage) { p.set('page', String(page)); p.set('pageSize', String(pageSize)); p.set('sortBy', sortBy); p.set('sortDir', sortDir); }
-    for (const k of Object.keys(EMPTY_FILTERS) as (keyof Filters)[]) {
-      const v = f[k];
-      if (v) p.set(k, v);
+  /* ── Rescheduling distribution (same logic as SubscriptionPage plan) ── */
+  const distributeSchedule = useCallback((count: number, total: number, baseData: { id: number | null; amount: number; dueDate: string }[], unpaid: Inst[]) => {
+    if (count < 1) return [];
+    const firstUnpaid = unpaid[0];
+    const firstIsDownPayment = !!firstUnpaid && firstUnpaid.installmentNumber === 1 && firstUnpaid.paidAmount === 0;
+    const downAmount = firstIsDownPayment ? firstUnpaid.amount : null;
+
+    let amounts: number[] = [];
+    if (downAmount !== null && downAmount < total) {
+      const remaining = total - downAmount;
+      const restCount = count - 1;
+      const perRest = restCount > 0 ? Math.round(remaining / restCount) : 0;
+      amounts = [downAmount];
+      for (let i = 1; i < count; i++) amounts.push(perRest);
+      const sumPrev = amounts.slice(0, -1).reduce((s, a) => s + a, 0);
+      amounts[count - 1] = Math.round((total - sumPrev) * 100) / 100;
+    } else {
+      const perInst = Math.round((total / count) * 100) / 100;
+      amounts = new Array(count).fill(perInst);
+      const sumPrev = amounts.slice(0, -1).reduce((s, a) => s + a, 0);
+      amounts[count - 1] = Math.round((total - sumPrev) * 100) / 100;
     }
-    return p.toString();
-  }, [f, page, pageSize, sortBy, sortDir]);
 
-  const loadList = useCallback(async () => {
-    setLoading(true);
+    const earliestDate = baseData.length > 0 ? baseData[0].dueDate : new Date().toISOString().split('T')[0];
+    const data: { id: number | null; amount: number; dueDate: string }[] = [];
+    for (let i = 0; i < count; i++) {
+      const existing = i < baseData.length ? baseData[i] : null;
+      const nextDate = existing?.dueDate || new Date(new Date(earliestDate).getTime() + i * 30 * 86400000).toISOString().split('T')[0];
+      data.push({ id: existing?.id || null, amount: amounts[i], dueDate: nextDate });
+    }
+    return data;
+  }, []);
+
+  /* ── Load a student + all their subscriptions ── */
+  const loadStudentSubs = useCallback(async (sid: string): Promise<any[]> => {
+    setStudentLoading(true);
+    setSubsLoading(true);
     try {
-      const r = await apiFetch(`/installments?${buildParams(true)}`);
-      setRows(r?.items || []);
-      setTotal(r?.total || 0);
-      setTotalPages(Math.max(1, r?.totalPages || 1));
-    } catch (err: any) { toast.error('فشل تحميل الأقساط', err.message); }
-    finally { setLoading(false); }
-  }, [buildParams, apiFetch]);
+      const [stu, d, c] = await Promise.all([
+        apiFetch(`/students/${sid}`),
+        apiFetch(`/subscriptions/diploma?studentId=${sid}`).catch(() => []),
+        apiFetch(`/subscriptions/course?studentId=${sid}`).catch(() => [])
+      ]);
+      setStudent(stu || null);
+      setFStudentName(stu?.fullNameAr || '');
+      const merged = [
+        ...(Array.isArray(d) ? d : []).map((s: any) => ({ ...s, _type: 'DIPLOMA', _name: s.diploma?.name || `دبلوم #${s.id}`, _progId: s.diplomaId })),
+        ...(Array.isArray(c) ? c : []).map((s: any) => ({ ...s, _type: 'COURSE', _name: s.course?.name || `دورة #${s.id}`, _progId: s.courseId }))
+      ];
+      setSubs(merged);
+      return merged;
+    } catch (err: any) { toast.error('فشل تحميل بيانات الطالب', err.message); return []; }
+    finally { setStudentLoading(false); setSubsLoading(false); }
+  }, [apiFetch, toast]);
 
-  const loadStats = useCallback(async () => {
-    setSummaryLoading(true);
+  /* ── Select a subscription → load its installments + init schedule ── */
+  const selectSub = useCallback(async (sub: any) => {
+    setSelSub(sub);
+    setSubInstLoading(true);
     try {
-      const s = await apiFetch(`/installments/stats?${buildParams(false)}`);
-      setSummary(s || null);
-    } catch { setSummary(null); }
-    finally { setSummaryLoading(false); }
-  }, [buildParams, apiFetch]);
+      const r = await apiFetch(`/installments?subscriptionId=${String(sub.id)}&subscriptionType=${sub._type}`);
+      const list: Inst[] = Array.isArray(r) ? r : [];
+      setSubInstalls(list);
+      const totalPaid = list.reduce((s, i) => s + (i.paidAmount || 0), 0);
+      const total = Math.max(0, (sub.totalCost || 0) - totalPaid);
+      if (total <= 0) {
+        setScheduleTotal(0); setScheduleCount(0); setScheduleData([]);
+      } else {
+        const unpaid = list.filter(i => remOf(i) > 0);
+        const cnt = Math.max(unpaid.length, 1);
+        const baseData = unpaid.length > 0 ? unpaid.map(i => ({ id: i.id, amount: i.amount, dueDate: i.dueDate.split('T')[0] })) : [];
+        setScheduleTotal(total);
+        setScheduleMin(Math.max(1, unpaid.filter(i => i.paidAmount > 0).length));
+        setScheduleData(distributeSchedule(cnt, total, baseData, unpaid) ?? []);
+        setScheduleCount(cnt);
+      }
+    } catch (err: any) { toast.error('فشل تحميل أقساط الاشتراك', err.message); }
+    finally { setSubInstLoading(false); }
+  }, [apiFetch, distributeSchedule, toast]);
 
-  /* Debounced load on any filter/page/sort change (no full page reload) */
+  const pickStudent = useCallback(async (s: any) => {
+    setShowStuDrop(false);
+    setSelSub(null); setSubInstalls([]); setScheduleData([]);
+    await loadStudentSubs(s.id);
+  }, [loadStudentSubs]);
+
+  const clearStudent = () => {
+    setStudent(null); setSubs([]); setSelSub(null); setSubInstalls([]);
+    setScheduleData([]); setScheduleCount(0); setScheduleTotal(0);
+    setDetail(null); setDrawerOpen(false); setSelId(null); setSubInsts([]);
+  };
+
+  const resetSearch = () => { clearStudent(); setFStudentName(''); setStuResults([]); setShowStuDrop(false); };
+
+  /* ── Quick access via ?studentId= ── */
   useEffect(() => {
-    const t = setTimeout(() => { loadList(); loadStats(); }, 300);
-    return () => clearTimeout(t);
-  }, [loadList, loadStats]);
+    const sid = searchParams.get('studentId');
+    if (sid) pickStudent({ id: sid });
+  }, [searchParams, pickStudent]);
 
-  const updateF = (patch: Partial<Filters>) => { setF(prev => ({ ...prev, ...patch })); setPage(1); };
+  /* Refresh workspace (subs + selected sub installments) after mutations */
+  const refreshWorkspace = useCallback(async () => {
+    if (!student) return;
+    const merged = await loadStudentSubs(String(student.id));
+    const target = selSub;
+    const fresh = merged.find(s => String(s.id) === String(target?.id) && s._type === target?._type);
+    if (fresh) await selectSub(fresh);
+  }, [student, selSub, loadStudentSubs, selectSub]);
 
-  const clearFilters = () => {
-    setF(EMPTY_FILTERS); setPage(1); setFStudentName(''); setStuResults([]); setShowStuDrop(false);
-  };
-
-  const activeFilterCount = () => {
-    let n = 0;
-    for (const k of Object.keys(EMPTY_FILTERS) as (keyof Filters)[]) { if (k !== 'query' && f[k]) n++; }
-    return n;
-  };
-  const hasActiveFilters = () => activeFilterCount() > 0;
-
+  /* ── Student search ── */
   const searchStudents = useCallback(async (q: string) => {
     if (!q.trim()) { setStuResults([]); return; }
     try {
@@ -224,12 +242,6 @@ export const FinInstallmentsPage = () => {
     } catch { setStuResults([]); }
   }, [apiFetch]);
 
-  const pickStudent = (s: any) => {
-    setFStudentName(s.fullNameAr);
-    updateF({ studentId: s.id });
-    setShowStuDrop(false);
-  };
-
   /* ── Detail drawer ── */
   const refreshDetail = useCallback(async () => {
     if (!selId) return;
@@ -238,7 +250,7 @@ export const FinInstallmentsPage = () => {
       const d = await apiFetch(`/installments/${selId}`);
       setDetail(d || null);
       if (d && d.subscriptionType !== 'EXTRA') {
-        const r = await apiFetch(`/installments?subscriptionId=${d.subscriptionId}`);
+        const r = await apiFetch(`/installments?subscriptionId=${d.subscriptionId}&subscriptionType=${d.subscriptionType}`);
         setSubInsts(Array.isArray(r) ? r : []);
       } else setSubInsts([]);
     } catch (err: any) { toast.error('فشل تحديث التفاصيل', err.message); }
@@ -252,7 +264,10 @@ export const FinInstallmentsPage = () => {
     await refreshDetail();
   }, [refreshDetail]);
 
-  const closeDetail = () => { setDrawerOpen(false); setSelId(null); setDetail(null); setSubInsts([]); };
+  const closeDetail = () => {
+    setDrawerOpen(false); setSelId(null); setDetail(null); setSubInsts([]);
+    if (student && selSub) selectSub(selSub);
+  };
 
   const resetPay = () => {
     setPayActive(false);
@@ -268,12 +283,19 @@ export const FinInstallmentsPage = () => {
     setPayNotes('');
   };
 
-  /* ── Derived ── */
+  /* ── Derived (drawer) ── */
   const isU = !!detail && (detail.status === 'PENDING' || detail.status === 'PARTIAL' || detail.status === 'OVERDUE');
   const subTotalPaid = subInsts.reduce((s, i) => s + (i.paidAmount || 0), 0);
   const subRemaining = Math.max(0, (detail?.subscription?.totalCost || 0) - subTotalPaid);
   const subPaidPct = (detail?.subscription?.totalCost || 0) > 0
     ? Math.min(100, Math.round((subTotalPaid / (detail?.subscription?.totalCost || 1)) * 100))
+    : 0;
+
+  /* ── Derived (workspace selected subscription) ── */
+  const wsTotalPaid = subInstalls.reduce((s, i) => s + (i.paidAmount || 0), 0);
+  const wsRemaining = Math.max(0, (selSub?.totalCost || 0) - wsTotalPaid);
+  const wsPaidPct = (selSub?.totalCost || 0) > 0
+    ? Math.min(100, Math.round((wsTotalPaid / (selSub?.totalCost || 1)) * 100))
     : 0;
 
   /* ── Add installment ── */
@@ -299,7 +321,8 @@ export const FinInstallmentsPage = () => {
     if (!aDue) { toast.error('التاريخ مطلوب'); return false; }
     if (aCategory === 'SUBSCRIPTION' && addSelSub) {
       try {
-        const existing = await apiFetch(`/installments?subscriptionId=${String(addSelSub.id)}`);
+        const subType = (addSelSub as any).diploma ? 'DIPLOMA' : 'COURSE';
+        const existing = await apiFetch(`/installments?subscriptionId=${String(addSelSub.id)}&subscriptionType=${subType}`);
         const existingTotal = (Array.isArray(existing) ? existing : []).reduce((s: number, i: any) => s + (i.amount || 0), 0);
         const cap = (addSelSub.totalCost || 0);
         if (existingTotal + amt > cap + 0.001) {
@@ -308,6 +331,7 @@ export const FinInstallmentsPage = () => {
         }
       } catch { /* allow server to reject if fetch fails */ }
     }
+    const usedSubId = addSelSub ? String(addSelSub.id) : null;
     setSaving(true);
     try {
       const body: any = { studentId: addStudent.id, dueDate: aDue, amount: amt, notes: aNotes || undefined, category: aCategory };
@@ -318,7 +342,11 @@ export const FinInstallmentsPage = () => {
       await apiFetch('/installments', { method: 'POST', body: JSON.stringify(body) });
       toast.success('تم إضافة القسط');
       setAddOpen(false);
-      loadList(); loadStats();
+      const merged = await loadStudentSubs(addStudent.id);
+      if (usedSubId) {
+        const fresh = merged.find(s => String(s.id) === usedSubId);
+        if (fresh) await selectSub(fresh);
+      }
       if (selId) refreshDetail();
       return true;
     } catch (err: any) { toast.error('فشل', err.message); return false; }
@@ -350,7 +378,7 @@ export const FinInstallmentsPage = () => {
         body: JSON.stringify({ amount: newAmt, dueDate: eDue, notes: eNotes || undefined })
       });
       toast.success('تم الحفظ');
-      loadList(); loadStats(); refreshDetail();
+      refreshDetail(); refreshWorkspace();
     } catch (err: any) { toast.error('فشل', err.message); }
     finally { setSaving(false); }
   };
@@ -372,8 +400,8 @@ export const FinInstallmentsPage = () => {
     try {
       await apiFetch(`/installments/${detail.id}`, { method: 'DELETE' });
       toast.success('تم الحذف');
-      closeDetail();
-      loadList(); loadStats();
+      setDrawerOpen(false); setSelId(null); setDetail(null); setSubInsts([]);
+      refreshWorkspace();
     } catch (err: any) { toast.error('فشل', err.message); }
     finally { setSaving(false); }
   };
@@ -386,7 +414,7 @@ export const FinInstallmentsPage = () => {
     try {
       await apiFetch(`/installments/${detail.id}/void-payment`, { method: 'POST' });
       toast.success('تم إلغاء الدفعات');
-      loadList(); loadStats(); refreshDetail();
+      refreshDetail(); refreshWorkspace();
     } catch (err: any) { toast.error('فشل', err.message); }
     finally { setSaving(false); }
   };
@@ -436,71 +464,21 @@ export const FinInstallmentsPage = () => {
       }
       toast.success('تم تسجيل الدفعة');
       resetPay();
-      loadList(); loadStats(); refreshDetail();
+      refreshDetail(); refreshWorkspace();
     } catch (err: any) { toast.error('فشل', err.message); }
     finally { setPayLoading(false); }
   };
 
-  /* ── Rescheduling (same logic as SubscriptionPage plan) ── */
-  const distributeSchedule = useCallback((count: number, total: number, baseData: typeof scheduleData, unpaid: Inst[] = subInsts.filter(i => remOf(i) > 0)) => {
-    if (count < 1) return;
-    const firstUnpaid = unpaid[0];
-    const firstIsDownPayment = !!firstUnpaid && firstUnpaid.installmentNumber === 1 && firstUnpaid.paidAmount === 0;
-    const downAmount = firstIsDownPayment ? firstUnpaid.amount : null;
-
-    let amounts: number[] = [];
-    if (downAmount !== null && downAmount < total) {
-      const remaining = total - downAmount;
-      const restCount = count - 1;
-      const perRest = restCount > 0 ? Math.round(remaining / restCount) : 0;
-      amounts = [downAmount];
-      for (let i = 1; i < count; i++) amounts.push(perRest);
-      const sumPrev = amounts.slice(0, -1).reduce((s, a) => s + a, 0);
-      amounts[count - 1] = Math.round((total - sumPrev) * 100) / 100;
-    } else {
-      const perInst = Math.round((total / count) * 100) / 100;
-      amounts = new Array(count).fill(perInst);
-      const sumPrev = amounts.slice(0, -1).reduce((s, a) => s + a, 0);
-      amounts[count - 1] = Math.round((total - sumPrev) * 100) / 100;
-    }
-
-    const earliestDate = baseData.length > 0 ? baseData[0].dueDate : new Date().toISOString().split('T')[0];
-    const data: { id: number | null; amount: number; dueDate: string }[] = [];
-    for (let i = 0; i < count; i++) {
-      const existing = i < baseData.length ? baseData[i] : null;
-      const nextDate = existing?.dueDate || new Date(new Date(earliestDate).getTime() + i * 30 * 86400000).toISOString().split('T')[0];
-      data.push({ id: existing?.id || null, amount: amounts[i], dueDate: nextDate });
-    }
-    return data;
-  }, [subInsts]);
-
-  const openSchedule = async () => {
-    if (!detail || detail.subscriptionType === 'EXTRA') return;
-    const r = await apiFetch(`/installments?subscriptionId=${detail.subscriptionId}`);
-    const list: Inst[] = Array.isArray(r) ? r : [];
-    setSubInsts(list);
-    const totalPaid = list.reduce((s, i) => s + (i.paidAmount || 0), 0);
-    const total = Math.max(0, (detail.subscription?.totalCost || 0) - totalPaid);
-    if (total <= 0) { toast.info('لا توجد أقساط متبقية لهذا الاشتراك'); return; }
-    const unpaid = list.filter(i => remOf(i) > 0);
-    const cnt = Math.max(unpaid.length, 1);
-    const baseData = unpaid.length > 0 ? unpaid.map(i => ({ id: i.id, amount: i.amount, dueDate: i.dueDate.split('T')[0] })) : [];
-    setScheduleData(distributeSchedule(cnt, total, baseData, unpaid) ?? []);
-    setScheduleCount(cnt);
-    setScheduleMin(Math.max(1, unpaid.filter(i => i.paidAmount > 0).length));
-    setScheduleTotal(total);
-    setShowSchedule(true);
-  };
-
+  /* ── Reschedule save ── */
   const handleScheduleSave = async () => {
-    if (!detail || detail.subscriptionType === 'EXTRA') return;
+    if (!selSub) return;
     if (scheduleData.some(d => !d.amount || d.amount <= 0)) { toast.error('جميع مبالغ الأقساط يجب أن تكون أكبر من صفر'); return; }
     const sum = scheduleData.reduce((s, d) => s + d.amount, 0);
     if (Math.abs(sum - scheduleTotal) > 0.01) {
       toast.error(`مجموع الأقساط (${sum.toFixed(2)}) لا يساوي المبلغ المتبقي (${scheduleTotal.toFixed(2)})`);
       return;
     }
-    const currentUnpaid = subInsts.filter(i => remOf(i) > 0);
+    const currentUnpaid = subInstalls.filter(i => remOf(i) > 0);
     const newCount = scheduleData.length;
     setSaving(true);
     try {
@@ -521,9 +499,9 @@ export const FinInstallmentsPage = () => {
         await apiFetch('/installments', {
           method: 'POST',
           body: JSON.stringify({
-            studentId: detail.studentId,
-            subscriptionType: detail.subscriptionType,
-            subscriptionId: String(detail.subscriptionId),
+            studentId: selSub.studentId,
+            subscriptionType: selSub._type,
+            subscriptionId: String(selSub.id),
             dueDate: s.dueDate,
             amount: s.amount,
           })
@@ -543,10 +521,46 @@ export const FinInstallmentsPage = () => {
       }
 
       toast.success('تم تحديث جدولة الأقساط');
-      setShowSchedule(false);
-      loadList(); loadStats(); refreshDetail();
+      await selectSub(selSub);
+      if (selId) refreshDetail();
     } catch (err: any) { toast.error('فشل', err.message); }
     finally { setSaving(false); }
+  };
+
+  /* ── From drawer → open the fixed reschedule panel for the same subscription ── */
+  const goReschedule = async () => {
+    if (!detail || detail.subscriptionType === 'EXTRA') return;
+    let merged = subs;
+    if (!student || String(student.id) !== String(detail.studentId)) {
+      merged = await loadStudentSubs(String(detail.studentId));
+    }
+    const sub = merged.find(s => String(s.id) === String(detail.subscriptionId) && s._type === detail.subscriptionType);
+    if (sub) await selectSub(sub);
+    setDrawerOpen(false);
+  };
+
+  /* ── Reschedule panel row actions ── */
+  const unpaidOf = () => subInstalls.filter(i => remOf(i) > 0);
+  const stepCount = (dir: 1 | -1) => {
+    if (scheduleTotal <= 0) return;
+    const cnt = Math.max(scheduleMin, scheduleCount + dir);
+    setScheduleCount(cnt);
+    setScheduleData(distributeSchedule(cnt, scheduleTotal, scheduleData, unpaidOf()) ?? []);
+  };
+  const addRow = () => {
+    if (scheduleTotal <= 0) return;
+    const cnt = scheduleCount + 1;
+    setScheduleCount(cnt);
+    setScheduleData(distributeSchedule(cnt, scheduleTotal, scheduleData, unpaidOf()) ?? []);
+  };
+  const removeRow = (idx: number) => {
+    if (scheduleData.length <= scheduleMin) return;
+    const cnt = scheduleData.length - 1;
+    setScheduleCount(cnt);
+    setScheduleData(distributeSchedule(cnt, scheduleTotal, scheduleData, unpaidOf()) ?? []);
+  };
+  const updateRow = (idx: number, patch: Partial<{ amount: number; dueDate: string }>) => {
+    setScheduleData(prev => prev.map((d, i) => i === idx ? { ...d, ...patch } : d));
   };
 
   /* ── Print receipt ── */
@@ -586,366 +600,414 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
 </body></html>`); w.document.close();
   };
 
-  /* ── Pagination helpers ── */
-  const pageNumbers = () => {
-    const pages: (number | '…')[] = [];
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      const start = Math.max(1, Math.min(page - 2, totalPages - 6));
-      for (let i = start; i < start + 7; i++) pages.push(i);
-      if (start > 1) pages.unshift('…');
-      if (start + 6 < totalPages) pages.push('…');
-    }
-    return pages;
-  };
-  const goPage = (p: number) => { if (p >= 1 && p <= totalPages) setPage(p); };
-
-  const programOptions = () => {
-    const opts: { value: string; label: string; type: string }[] = [];
-    if (f.subscriptionType !== 'COURSE') for (const d of diplomas) opts.push({ value: `D-${d.id}`, label: `دبلوم: ${d.name}`, type: 'DIPLOMA' });
-    if (f.subscriptionType !== 'DIPLOMA') for (const c of courses) opts.push({ value: `C-${c.id}`, label: `دورة: ${c.name}`, type: 'COURSE' });
-    return opts;
-  };
-  const selProgramValue = () => (f.courseId ? `C-${f.courseId}` : f.diplomaId ? `D-${f.diplomaId}` : '');
-  const onProgramChange = (v: string) => {
-    if (!v) { setF(prev => ({ ...prev, courseId: '', diplomaId: '' })); setPage(1); return; }
-    const [type, id] = v.split('-');
-    if (type === 'C') { setF(prev => ({ ...prev, courseId: id, diplomaId: '' })); setPage(1); }
-    else { setF(prev => ({ ...prev, courseId: '', diplomaId: id })); setPage(1); }
-  };
-
-  const STAT_CARDS = [
-    { cls: 'blue', color: '#3b82f6', ico: <CreditCard size={17} />, label: 'إجمالي الأقساط', val: summaryLoading ? '…' : String(num(summary?.totalInstallments)), sub: summaryLoading ? '' : `${fmt(summary?.totalAmount)} د.أ` },
-    { cls: 'green', color: '#10b981', ico: <Wallet size={17} />, label: 'المدفوع', val: summaryLoading ? '…' : fmt(summary?.totalPaid), sub: 'د.أ' },
-    { cls: 'purple', color: '#6366f1', ico: <ListChecks size={17} />, label: 'المتبقي', val: summaryLoading ? '…' : fmt(summary?.totalRemaining), sub: 'د.أ' },
-    { cls: 'amber', color: '#f59e0b', ico: <Clock size={17} />, label: 'متأخر', val: summaryLoading ? '…' : String(num(summary?.overdueCount)), sub: summaryLoading ? '' : `${fmt(summary?.overdueAmount)} د.أ` },
-  ];
-
-  const statusTab = STATUS_TABS.find(t => t.key === f.status)?.label;
-
-  const filterChips: { label: string; onClear?: () => void }[] = [];
-  if (statusTab && statusTab !== 'الكل') filterChips.push({ label: `الحالة: ${statusTab}`, onClear: () => updateF({ status: '' }) });
-  if (fStudentName) filterChips.push({ label: fStudentName, onClear: () => { updateF({ studentId: '' }); setFStudentName(''); } });
-  if (f.subscriptionType) filterChips.push({ label: `النوع: ${f.subscriptionType === 'DIPLOMA' ? 'دبلوم' : f.subscriptionType === 'COURSE' ? 'دورة' : 'رسوم إضافية'}`, onClear: () => updateF({ subscriptionType: '', courseId: '', diplomaId: '' }) });
-  if (f.paymentDest) filterChips.push({ label: `جهة الدفع: ${f.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'}`, onClear: () => updateF({ paymentDest: '' }) });
-  if (f.entityId) filterChips.push({ label: `جهة: ${entities.find(e => String(e.id) === f.entityId)?.name || ''}`, onClear: () => updateF({ entityId: '' }) });
-  if (f.courseId || f.diplomaId) filterChips.push({ label: `برنامج: ${programOptions().find(o => o.value === selProgramValue())?.label.replace(/^(دبلوم|دورة): /, '') || ''}`, onClear: () => updateF({ courseId: '', diplomaId: '' }) });
-  if (f.dateFrom || f.dateTo) filterChips.push({ label: `الاستحقاق: ${f.dateFrom || '...'} ← ${f.dateTo || '...'}`, onClear: () => updateF({ dateFrom: '', dateTo: '' }) });
+  const typeBadge = (t: string) => t === 'DIPLOMA'
+    ? <span className="badge primary" style={{ fontSize: '0.52rem' }}>دبلوم</span>
+    : <span className="badge success" style={{ fontSize: '0.52rem' }}>دورة</span>;
 
   /* ═══════════════════════ RENDER ═══════════════════════ */
   return (
-    <div style={{ minHeight: 'calc(100vh - 140px)', maxWidth: 1500, margin: '0 auto' }}>
+    <div style={{ minHeight: 'calc(100vh - 140px)', maxWidth: 1500, margin: '0 auto', direction: 'rtl' }}>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 38, height: 38, borderRadius: 11, background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <CreditCard size={18} />
           </div>
           <div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>إدارة الأقساط</div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{total} {total === 1 ? 'قسط' : 'قسط'} • جلب من الخادم</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              {student ? `${student.fullNameAr} — ${subs.length} ${subs.length === 1 ? 'اشتراك' : 'اشتراكات'}` : 'لوحة عمل — اختر طالباً للبدء'}
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button className="glass-btn icon-btn" onClick={() => { loadList(); loadStats(); }} title="تحديث"><RefreshCw size={16} /></button>
+          <button className="glass-btn icon-btn" onClick={() => { if (student) { loadStudentSubs(String(student.id)); if (selSub) selectSub(selSub); } }} title="تحديث"><RefreshCw size={16} /></button>
           <button className="glass-btn" onClick={() => setIsDeep(true)} style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Search size={15} /> بحث عميق
           </button>
-          <button className={`glass-btn ${filtersOpen ? '' : 'secondary'}`} onClick={() => setFiltersOpen(o => !o)} style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <SlidersHorizontal size={15} /> الفلاتر
-            <span style={{
-              minWidth: 18, height: 18, borderRadius: 9, padding: '0 5px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.58rem', fontWeight: 700,
-              background: hasActiveFilters() ? 'var(--primary)' : 'var(--glass-border)', color: hasActiveFilters() ? '#fff' : 'var(--text-muted)',
-            }}>{activeFilterCount()}</span>
+        </div>
+      </div>
+
+      {/* ── Student search bar ── */}
+      <div ref={stuRef} style={{ position: 'relative', marginBottom: 16 }}>
+        <div className="glass-panel" style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--glass-border)' }}>
+          <User size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          <input type="text" placeholder="ابحث عن طالب بالاسم، الرقم، أو الهاتف — ثم اختر اشتراكاً من الجهة المقابلة"
+            value={fStudentName}
+            onChange={e => {
+              const v = e.target.value;
+              clearStudent();
+              setFStudentName(v);
+              searchStudents(v);
+            }}
+            onFocus={() => { if (stuResults.length > 0) setShowStuDrop(true); }}
+            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '0.88rem', color: 'inherit', fontFamily: 'inherit', minWidth: 0 }}
+          />
+          {student && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.72rem', fontWeight: 600, padding: '4px 10px', borderRadius: 8, whiteSpace: 'nowrap' }}>
+              <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700 }}>
+                {(student.fullNameAr || '؟').charAt(0)}
+              </span>
+              {student.fullNameAr} <span style={{ fontFamily: 'monospace', opacity: 0.6 }}>#{student.id}</span>
+              <X size={13} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={resetSearch} />
+            </span>
+          )}
+          <button className="glass-btn sm secondary" onClick={() => setIsDeep(true)} style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+            <Layers size={13} /> بحث عميق
           </button>
         </div>
-      </div>
 
-      {/* ── Stats ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: 12, marginBottom: 20 }}>
-        {STAT_CARDS.map((s, i) => (
-          <div key={i} className={`stat-card ${s.cls}`} style={{ padding: '12px 14px', border: '1px solid var(--glass-border)', overflow: 'hidden', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: -10, left: -10, width: 60, height: 60, borderRadius: '50%', background: `${s.color}08`, pointerEvents: 'none' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: `${s.color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.color, flexShrink: 0 }}>{s.ico}</div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2, fontWeight: 500 }}>{s.label}</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, lineHeight: 1.15, fontFamily: 'monospace', direction: 'ltr', textAlign: 'left' }}>{s.val}</div>
-                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: 1 }}>{s.sub}</div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Filters ── */}
-      {filtersOpen && (
-        <div className="glass-panel" style={{ padding: '14px 18px', marginBottom: 14, border: '1px solid var(--glass-border)' }}>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            {/* Student search */}
-            <div ref={stuRef} style={{ flex: '1 1 220px', minWidth: 200, position: 'relative' }}>
-              <label style={{ ...gl, fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: 4 }}><User size={11} /> بحث عن طالب</label>
-              <div style={{ display: 'flex', gap: 5 }}>
-                <div style={{ position: 'relative', flex: 1 }}>
-                  <Search size={13} style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none', zIndex: 1 }} />
-                  <input type="text" className="glass-input" placeholder="الاسم، الرقم، أو الهاتف..."
-                    value={fStudentName || f.query}
-                    onChange={e => {
-                      const v = e.target.value;
-                      setFStudentName('');
-                      updateF({ query: v, studentId: '' });
-                      searchStudents(v);
-                    }}
-                    onFocus={() => { if (stuResults.length > 0) setShowStuDrop(true); }}
-                    style={{ fontSize: '0.8rem', paddingRight: 26, paddingLeft: fStudentName ? 90 : 8 }}
-                  />
-                  {fStudentName && (
-                    <span style={{ position: 'absolute', left: 5, top: '50%', transform: 'translateY(-50%)', fontSize: '0.58rem', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap', maxWidth: '45%', overflow: 'hidden', textOverflow: 'ellipsis', zIndex: 1, fontWeight: 500 }}>
-                      {fStudentName}
-                      <X size={9} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => { setFStudentName(''); updateF({ studentId: '', query: '' }); }} />
-                    </span>
-                  )}
+        {showStuDrop && stuResults.length > 0 && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 120, background: 'var(--card-bg)', borderRadius: 12, marginTop: 4, border: '1px solid var(--glass-border)', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', maxHeight: 260, overflowY: 'auto' }}>
+            {stuResults.map((s: any) => (
+              <div key={s.id} onClick={() => pickStudent(s)}
+                style={{ padding: '10px 14px', cursor: 'pointer', fontSize: '0.82rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background .12s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--glass-bg-hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700 }}>{s.fullNameAr?.charAt(0)}</div>
+                  <span style={{ fontWeight: 500 }}>{s.fullNameAr}</span>
+                  {s.phones && <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontFamily: 'monospace', direction: 'ltr' }}>0{getPhone(s.phones)}</span>}
                 </div>
-                <button className="glass-btn icon-btn sm" onClick={() => setIsDeep(true)} title="بحث عميق"><Search size={13} /></button>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.68rem', fontFamily: 'monospace' }}>#{s.id}</span>
               </div>
-              {showStuDrop && stuResults.length > 0 && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: 'var(--card-bg)', borderRadius: 8, marginTop: 3, border: '1px solid var(--glass-border)', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', maxHeight: 180, overflowY: 'auto' }}>
-                  {stuResults.map((s: any) => (
-                    <div key={s.id} onClick={() => pickStudent(s)}
-                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background .12s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--glass-bg-hover)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700 }}>{s.fullNameAr?.charAt(0)}</div>
-                        <span style={{ fontSize: '0.8rem' }}>{s.fullNameAr}</span>
-                      </div>
-                      <span style={{ color: 'var(--text-muted)', fontSize: '0.68rem', fontFamily: 'monospace' }}>#{s.id}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={{ flex: '1 1 140px', minWidth: 120 }}>
-              <label style={{ ...gl, fontSize: '0.7rem', marginBottom: 3 }}>جهة التعليم</label>
-              <select className="glass-input" value={f.entityId} onChange={e => updateF({ entityId: e.target.value })} style={{ fontSize: '0.8rem' }}>
-                <option value="">الكل</option>
-                {entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
-              </select>
-            </div>
-
-            <div style={{ flex: '1 1 140px', minWidth: 120 }}>
-              <label style={{ ...gl, fontSize: '0.7rem', marginBottom: 3 }}>البرنامج</label>
-              <select className="glass-input" value={selProgramValue()} onChange={e => onProgramChange(e.target.value)} style={{ fontSize: '0.8rem' }}>
-                <option value="">الكل</option>
-                {programOptions().map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-
-            <div style={{ minWidth: 110 }}>
-              <label style={{ ...gl, fontSize: '0.7rem', marginBottom: 3 }}>النوع</label>
-              <select className="glass-input" value={f.subscriptionType} onChange={e => updateF({ subscriptionType: e.target.value, courseId: '', diplomaId: '' })} style={{ fontSize: '0.8rem' }}>
-                <option value="">الكل</option>
-                <option value="DIPLOMA">دبلوم</option>
-                <option value="COURSE">دورة</option>
-                <option value="EXTRA">رسوم إضافية</option>
-              </select>
-            </div>
-
-            <div style={{ minWidth: 110 }}>
-              <label style={{ ...gl, fontSize: '0.7rem', marginBottom: 3 }}>جهة الدفع</label>
-              <select className="glass-input" value={f.paymentDest} onChange={e => updateF({ paymentDest: e.target.value })} style={{ fontSize: '0.8rem' }}>
-                <option value="">الكل</option>
-                <option value="ENTITY">جهة التعليم</option>
-                <option value="US">لدينا</option>
-              </select>
-            </div>
-
-            <div style={{ minWidth: 130 }}>
-              <label style={{ ...gl, fontSize: '0.7rem', marginBottom: 3 }}>من تاريخ</label>
-              <DateField value={f.dateFrom} onChange={v => updateF({ dateFrom: v })} style={{ minWidth: 250 }} selectStyle={{ fontSize: '0.8rem', padding: '6px 9px' }} />
-            </div>
-            <div style={{ minWidth: 130 }}>
-              <label style={{ ...gl, fontSize: '0.7rem', marginBottom: 3 }}>إلى تاريخ</label>
-              <DateField value={f.dateTo} onChange={v => updateF({ dateTo: v })} style={{ minWidth: 250 }} selectStyle={{ fontSize: '0.8rem', padding: '6px 9px' }} />
-            </div>
-
-            <div style={{ minWidth: 110 }}>
-              <label style={{ ...gl, fontSize: '0.7rem', marginBottom: 3 }}>الفرز</label>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <select className="glass-input" value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ fontSize: '0.8rem', flex: 1 }}>
-                  <option value="dueDate">الاستحقاق</option>
-                  <option value="amount">المبلغ</option>
-                  <option value="paidAmount">المدفوع</option>
-                  <option value="createdAt">الإضافة</option>
-                </select>
-                <select className="glass-input" value={sortDir} onChange={e => setSortDir(e.target.value as 'asc' | 'desc')} style={{ fontSize: '0.8rem', width: 54 }}>
-                  <option value="asc">↑</option>
-                  <option value="desc">↓</option>
-                </select>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 5, alignItems: 'flex-end', paddingBottom: 1 }}>
-              <button className="glass-btn icon-btn sm" onClick={clearFilters} title="مسح الفلاتر" style={{ opacity: hasActiveFilters() ? 1 : 0.35, transition: 'opacity .15s' }}><X size={13} /></button>
-              <button className="glass-btn icon-btn sm" onClick={() => { loadList(); loadStats(); }} title="تحديث"><RefreshCw size={13} /></button>
-            </div>
-          </div>
-
-          {hasActiveFilters() && (
-            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--glass-border)', alignItems: 'center' }}>
-              {filterChips.map((c, i) => (
-                <span key={i} style={{ fontSize: '0.58rem', background: c.onClear ? 'var(--primary-light)' : 'var(--glass-bg)', color: c.onClear ? 'var(--primary)' : undefined, padding: '2px 7px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 500 }}>
-                  <Filter size={9} /> {c.label}
-                  {c.onClear && <X size={9} style={{ cursor: 'pointer' }} onClick={c.onClear} />}
-                </span>
-              ))}
-              <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginRight: 'auto', fontWeight: 500 }}>{total} {total === 1 ? 'نتيجة' : 'نتيجة'}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Status tabs + actions ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-          {STATUS_TABS.map(t => (
-            <button key={t.key} className={`glass-btn sm ${f.status === t.key ? '' : 'secondary'}`}
-              onClick={() => updateF({ status: t.key })}
-              style={{ fontSize: '0.74rem', padding: '5px 12px', background: f.status === t.key ? 'var(--primary)' : undefined, color: f.status === t.key ? '#fff' : undefined, fontWeight: f.status === t.key ? 600 : 400, borderRadius: 7, transition: 'all .12s' }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Banknote size={13} /> المبالغ بالدينار الأردني
-        </div>
-      </div>
-
-      {/* ── Table ── */}
-      <div className="glass-panel" style={{ padding: 0, overflow: 'hidden', borderRadius: 12, border: '1px solid var(--glass-border)' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="glass-table" style={{ fontSize: '0.72rem', width: '100%', minWidth: 860 }}>
-            <thead>
-              <tr>
-                <th style={{ padding: '9px 12px', fontWeight: 600, fontSize: '0.66rem', color: 'var(--text-muted)' }}>الطالب</th>
-                <th style={{ padding: '9px 12px', fontWeight: 600, fontSize: '0.66rem', color: 'var(--text-muted)' }}>البرنامج</th>
-                <th style={{ padding: '9px 12px', width: 70, fontWeight: 600, fontSize: '0.66rem', color: 'var(--text-muted)' }}>القسط</th>
-                <th style={{ padding: '9px 12px', width: 75, textAlign: 'center', fontWeight: 600, fontSize: '0.66rem', color: 'var(--text-muted)' }}>المبلغ</th>
-                <th style={{ padding: '9px 12px', width: 75, textAlign: 'center', fontWeight: 600, fontSize: '0.66rem', color: 'var(--text-muted)' }}>المدفوع</th>
-                <th style={{ padding: '9px 12px', width: 75, textAlign: 'center', fontWeight: 600, fontSize: '0.66rem', color: 'var(--text-muted)' }}>المتبقي</th>
-                <th style={{ padding: '9px 12px', width: 85, fontWeight: 600, fontSize: '0.66rem', color: 'var(--text-muted)' }}>الاستحقاق</th>
-                <th style={{ padding: '9px 12px', width: 95, fontWeight: 600, fontSize: '0.66rem', color: 'var(--text-muted)' }}>جهة الدفع</th>
-                <th style={{ padding: '9px 12px', width: 70, fontWeight: 600, fontSize: '0.66rem', color: 'var(--text-muted)' }}>الحالة</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => (
-                  <tr key={`sk-${i}`} style={{ height: 48 }}>
-                    <td colSpan={9}>
-                      <div style={{ height: 12, width: '55%', borderRadius: 6, background: 'var(--glass-border)', animation: 'pulse 1.2s ease-in-out infinite', opacity: 0.35 }} />
-                    </td>
-                  </tr>
-                ))
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
-                    <CreditCard size={24} style={{ opacity: 0.2, margin: '0 auto 8px', display: 'block' }} /> لا توجد أقساط مطابقة للفلاتر
-                  </td>
-                </tr>
-              ) : rows.map(r => {
-                const st = ST[r.status] || { label: r.status, cls: 'secondary' };
-                const cat = catLabel(r);
-                const isActive = selId === r.id;
-                return (
-                  <tr key={r.id} onClick={() => openDetail(r.id)} className={isActive ? 'active' : ''} style={{ cursor: 'pointer', transition: 'background .12s' }}>
-                    <td style={{ padding: '9px 12px', minWidth: 150 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.56rem', fontWeight: 700, flexShrink: 0 }}>{r.student?.fullNameAr?.charAt(0) || '؟'}</div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>{r.student?.fullNameAr || '—'}</div>
-                          <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontFamily: 'monospace', direction: 'ltr', textAlign: 'right' }}>
-                            #{r.studentId}{r.student?.phones ? ` • ${getPhone(r.student.phones)}` : ''}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '9px 12px', minWidth: 120 }}>
-                      {cat ? (
-                        <span className={`badge ${cat.cls}`} style={{ fontSize: '0.56rem' }}>{cat.label}</span>
-                      ) : (
-                        <>
-                          <span style={{ fontWeight: 500 }}>{r.programName || '—'}</span>
-                          <span className={`badge ${r.subscriptionType === 'DIPLOMA' ? 'primary' : 'success'}`} style={{ fontSize: '0.5rem', marginRight: 4 }}>
-                            {r.subscriptionType === 'DIPLOMA' ? 'دبلوم' : 'دورة'}
-                          </span>
-                        </>
-                      )}
-                      {r.entityName && <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{r.entityName}</div>}
-                    </td>
-                    <td style={{ padding: '9px 12px', fontFamily: 'monospace', whiteSpace: 'nowrap', fontSize: '0.68rem' }}>{r.installmentNumber}/{r.totalInstallments}</td>
-                    <td style={{ padding: '9px 12px', direction: 'ltr', fontFamily: 'monospace', textAlign: 'center', fontWeight: 600 }}>{fmt(r.amount)}</td>
-                    <td style={{ padding: '9px 12px', direction: 'ltr', fontFamily: 'monospace', textAlign: 'center', color: r.paidAmount > 0 ? 'var(--success)' : 'var(--text-muted)' }}>
-                      {r.paidAmount > 0 ? fmt(r.paidAmount) : '—'}
-                    </td>
-                    <td style={{ padding: '9px 12px', direction: 'ltr', fontFamily: 'monospace', textAlign: 'center', color: remOf(r) > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>
-                      {remOf(r) > 0 ? fmt(remOf(r)) : '—'}
-                    </td>
-                    <td style={{ padding: '9px 12px', fontSize: '0.66rem', whiteSpace: 'nowrap' }}>{formatDate(r.dueDate)}</td>
-                    <td style={{ padding: '9px 12px' }}>
-                      {r.paymentDest ? (
-                        <span className={`badge ${r.paymentDest === 'ENTITY' ? 'primary' : 'teal'}`} style={{ fontSize: '0.52rem' }}>
-                          {r.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'}
-                        </span>
-                      ) : <span style={{ color: 'var(--text-muted)', fontSize: '0.64rem' }}>—</span>}
-                    </td>
-                    <td style={{ padding: '9px 12px' }}>
-                      <span className={`badge ${st.cls}`} style={{ fontSize: '0.56rem', padding: '2px 7px', borderRadius: 4, fontWeight: 600 }}>{st.label}</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── Pagination footer ── */}
-        {!loading && total > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, padding: '10px 14px', borderTop: '1px solid var(--glass-border)' }}>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>عرض</span>
-              <select className="glass-input" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }} style={{ padding: '4px 8px', fontSize: '0.7rem', width: 'auto' }}>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <span>— {((page - 1) * pageSize + 1)}–{Math.min(page * pageSize, total)} من {total}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <button className="glass-btn icon-btn xs" onClick={() => goPage(page - 1)} disabled={page <= 1} title="السابق"><ChevronRight size={14} /></button>
-              {pageNumbers().map((p, i) => (
-                p === '…'
-                  ? <span key={`e-${i}`} style={{ color: 'var(--text-muted)', fontSize: '0.75rem', padding: '0 4px' }}>…</span>
-                  : <button key={p} onClick={() => goPage(p as number)}
-                      style={{
-                        minWidth: 30, height: 30, borderRadius: 8, padding: '0 8px', cursor: 'pointer', fontSize: '0.75rem',
-                        border: `1px solid ${p === page ? 'var(--primary)' : 'var(--glass-border)'}`,
-                        background: p === page ? 'var(--primary)' : 'transparent',
-                        color: p === page ? '#fff' : 'inherit', fontWeight: p === page ? 700 : 400,
-                      }}>
-                      {p}
-                    </button>
-              ))}
-              <button className="glass-btn icon-btn xs" onClick={() => goPage(page + 1)} disabled={page >= totalPages} title="التالي"><ChevronLeft size={14} /></button>
-            </div>
+            ))}
           </div>
         )}
       </div>
+
+      {student ? (
+        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+
+          {/* ═════════════ RIGHT: RESCHEDULE PANEL (fixed) ═════════════ */}
+          <aside style={{ flex: '0 0 340px', minWidth: 300, position: 'sticky', top: 14, order: 1 }}>
+            <div className="glass-panel" style={{ overflow: 'hidden', border: '1px solid var(--glass-border)', borderRadius: 14 }}>
+              <div style={{
+                padding: '14px 16px', borderBottom: '1px solid var(--glass-border)',
+                background: 'linear-gradient(135deg, var(--primary-light), transparent)',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Calendar size={16} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.86rem' }}>إعادة جدولة الأقساط</div>
+                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>لوحة مثبتة — الخيارات ثابتة أثناء التمرير</div>
+                </div>
+              </div>
+
+              <div style={{ padding: '14px 16px' }}>
+                {!selSub ? (
+                  <div style={{ padding: '26px 14px', textAlign: 'center' }}>
+                    <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--glass-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
+                      <Calendar size={22} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />
+                    </div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>اختر اشتراكاً</div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.6 }}>
+                      انقر على أي اشتراك في قائمة <strong>الجهة المقابلة</strong> لعرض أقساطه وبدء إعادة الجدولة هنا
+                    </div>
+                  </div>
+                ) : wsRemaining <= 0 ? (
+                  <div style={{ padding: '26px 14px', textAlign: 'center' }}>
+                    <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(34,197,94,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
+                      <CheckCircle2 size={22} color="var(--success)" />
+                    </div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--success)' }}>مدفوع بالكامل</div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4 }}>لا توجد أقساط متبقية لإعادة جدولتها</div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Selected subscription summary */}
+                    <div style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--card-bg)', border: '1px solid var(--glass-border)', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        {typeBadge(selSub._type)}
+                        <span style={{ fontWeight: 700, fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selSub._name}</span>
+                      </div>
+                      {selSub.entity?.name && <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)', marginBottom: 6 }}>{selSub.entity.name}</div>}
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.58rem', marginBottom: 1, fontWeight: 500 }}>القيمة</div>
+                          <div style={{ fontWeight: 700, fontSize: '0.74rem', fontFamily: 'monospace', direction: 'ltr', textAlign: 'right' }}>{fmt(selSub.totalCost)}</div>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.58rem', marginBottom: 1, fontWeight: 500 }}>المدفوع</div>
+                          <div style={{ fontWeight: 700, fontSize: '0.74rem', color: 'var(--success)', fontFamily: 'monospace', direction: 'ltr', textAlign: 'right' }}>{fmt(wsTotalPaid)}</div>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.58rem', marginBottom: 1, fontWeight: 500 }}>المتبقي</div>
+                          <div style={{ fontWeight: 700, fontSize: '0.74rem', color: 'var(--danger)', fontFamily: 'monospace', direction: 'ltr', textAlign: 'right' }}>{fmt(wsRemaining)}</div>
+                        </div>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 3, background: 'var(--glass-border)', overflow: 'hidden' }}>
+                        <div style={{ width: `${wsPaidPct}%`, height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, var(--success), var(--teal))', transition: 'width .4s ease' }} />
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: '0.6rem', color: 'var(--text-muted)' }}>{wsPaidPct}% مدفوع • {unpaidOf().length} قسط غير مدفوع</div>
+                    </div>
+
+                    {/* Fixed options */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10, padding: '9px 11px', borderRadius: 10, border: '1px solid var(--glass-border)', background: 'var(--glass-bg)' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: 2, fontWeight: 500 }}>المبلغ المتبقي للجدولة</div>
+                        <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', direction: 'ltr', textAlign: 'right' }}>{fmt(scheduleTotal)} د.أ</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: 2, fontWeight: 500 }}>عدد الدفعات</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <button className="glass-btn icon-btn xs" onClick={() => stepCount(-1)} disabled={scheduleCount <= scheduleMin} style={{ width: 26, height: 26, borderRadius: 6, fontSize: '0.9rem', lineHeight: 1, padding: 0, fontWeight: 700 }}><Minus size={13} /></button>
+                          <span style={{ fontSize: '1rem', fontWeight: 700, minWidth: 26, textAlign: 'center' }}>{scheduleCount}</span>
+                          <button className="glass-btn icon-btn xs" onClick={() => stepCount(1)} style={{ width: 26, height: 26, borderRadius: 6, fontSize: '0.9rem', lineHeight: 1, padding: 0, fontWeight: 700 }}><Plus size={13} /></button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Editable rows */}
+                    <div style={{ fontSize: '0.66rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <ListChip /> الدفعات (يمكن تعديل المبلغ والتاريخ لكل دفعة)
+                    </div>
+                    <div style={{ maxHeight: 'min(38vh, 300px)', overflowY: 'auto', marginBottom: 8 }}>
+                      {scheduleData.map((s, idx) => (
+                        <div key={s.id || `new-${idx}`} style={{ padding: '9px 11px', marginBottom: 8, borderRadius: 10, background: 'var(--card-bg)', border: '1px solid var(--glass-border)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ width: 18, height: 18, borderRadius: '50%', background: s.id ? 'var(--primary)' : 'var(--success)', color: '#fff', fontSize: '0.55rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{idx + 1}</span>
+                              {s.id ? `القسط الحالي #${idx + 1}` : 'قسط جديد'}
+                            </span>
+                            <button className="glass-btn icon-btn xs" onClick={() => removeRow(idx)} disabled={scheduleData.length <= scheduleMin} title="حذف هذه الدفعة" style={{ width: 24, height: 24, borderRadius: 6, padding: 0, color: 'var(--danger)', borderColor: 'var(--danger)' }}>
+                              <X size={12} />
+                            </button>
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <label style={{ ...gl, fontSize: '0.62rem' }}>المبلغ (د.أ)</label>
+                              <input type="text" inputMode="decimal" className="glass-input" value={s.amount}
+                                onChange={e => updateRow(idx, { amount: toNumber(e.target.value) })}
+                                style={{ direction: 'ltr', fontSize: '0.78rem', fontWeight: 600 }} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <label style={{ ...gl, fontSize: '0.62rem' }}>تاريخ الاستحقاق</label>
+                              <DateField value={s.dueDate} onChange={v => updateRow(idx, { dueDate: v })} selectStyle={{ fontSize: '0.78rem' }} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button className="glass-btn secondary sm" onClick={addRow} style={{ width: '100%', justifyContent: 'center', fontSize: '0.72rem', borderStyle: 'dashed', padding: '8px', marginBottom: 10 }}>
+                      <Plus size={13} /> إضافة دفعة جديدة
+                    </button>
+
+                    {/* Sum check + save */}
+                    <div style={{
+                      padding: '8px 12px', borderRadius: 8, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', fontWeight: 600,
+                      background: Math.abs(scheduleData.reduce((s2, d) => s2 + d.amount, 0) - scheduleTotal) <= 0.01 ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                      color: Math.abs(scheduleData.reduce((s2, d) => s2 + d.amount, 0) - scheduleTotal) <= 0.01 ? 'var(--success)' : 'var(--danger)',
+                    }}>
+                      <span>المجموع</span>
+                      <span style={{ fontFamily: 'monospace', direction: 'ltr' }}>
+                        {scheduleData.reduce((s2, d) => s2 + d.amount, 0).toFixed(2)} / {fmt(scheduleTotal)}
+                      </span>
+                    </div>
+
+                    {canEdit ? (
+                      <button className="glass-btn" onClick={handleScheduleSave} disabled={saving || scheduleData.length === 0}
+                        style={{ width: '100%', justifyContent: 'center', fontSize: '0.8rem', padding: '10px', background: 'var(--primary)', borderColor: 'var(--primary)', color: '#fff' }}>
+                        <Save size={15} /> {saving ? 'جارٍ الحفظ...' : 'حفظ جدولة الأقساط'}
+                      </button>
+                    ) : (
+                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', textAlign: 'center' }}>ليست لديك صلاحية تعديل الجدولة</div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </aside>
+
+          {/* ═════════════ LEFT: SUBSCRIPTIONS + INSTALLMENTS ═════════════ */}
+          <section style={{ flex: '1 1 480px', minWidth: 0, order: 2 }}>
+
+            {/* Student card */}
+            <div className="glass-panel" style={{ padding: '14px 16px', marginBottom: 14, border: '1px solid var(--glass-border)', borderRadius: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 46, height: 46, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1.05rem', flexShrink: 0 }}>
+                  {(student.fullNameAr || '؟').charAt(0)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{student.fullNameAr}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace', direction: 'ltr', textAlign: 'right' }}>
+                    #{student.id}{student.phones ? ` • ${getPhone(student.phones)}` : ''}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button className="glass-btn sm" onClick={() => navigate(`/student-profile?studentId=${student.id}`)} style={{ fontSize: '0.7rem' }}>
+                    <ExternalLink size={13} /> ملف الطالب
+                  </button>
+                  <button className="glass-btn sm secondary" onClick={() => navigate(`/subscriptions?studentId=${student.id}`)} style={{ fontSize: '0.7rem' }}>
+                    <Plus size={13} /> اشتراك جديد
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Subscriptions */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+              <span style={{ fontWeight: 700, fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <GraduationCap size={15} color="var(--primary)" /> اشتراكات الطالب
+                <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 400 }}>{subs.length} اشتراك</span>
+              </span>
+              <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>انقر على اشتراك لعرض أقساطه وإعادة جدولتها</span>
+            </div>
+
+            {subsLoading ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{ height: 120, borderRadius: 12, background: 'var(--glass-border)', opacity: 0.3, animation: 'pulse 1.2s ease-in-out infinite' }} />
+                ))}
+              </div>
+            ) : subs.length === 0 ? (
+              <div className="glass-panel" style={{ padding: '30px 20px', textAlign: 'center', border: '1px dashed var(--glass-border)' }}>
+                <BookOpen size={24} style={{ opacity: 0.2, margin: '0 auto 8px', display: 'block' }} />
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>لا توجد اشتراكات لهذا الطالب</div>
+                <button className="glass-btn sm" onClick={() => navigate(`/subscriptions?studentId=${student.id}`)} style={{ marginTop: 8, fontSize: '0.72rem' }}>
+                  <Plus size={13} /> تسجيل اشتراك جديد
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10, marginBottom: 18 }}>
+                {subs.map(sub => {
+                  const isActive = String(selSub?.id) === String(sub.id) && selSub?._type === sub._type;
+                  const stBadge = SUB_ST[sub.status] || { label: sub.status, cls: 'secondary' };
+                  return (
+                    <div key={`${sub._type}-${sub.id}`} onClick={() => selectSub(sub)}
+                      style={{
+                        padding: '12px 13px', borderRadius: 12, cursor: 'pointer', position: 'relative',
+                        background: isActive ? 'var(--primary-light)' : 'var(--card-bg)',
+                        border: `1.5px solid ${isActive ? 'var(--primary)' : 'var(--glass-border)'}`,
+                        boxShadow: isActive ? '0 4px 16px rgba(99,102,241,0.15)' : 'none',
+                        transition: 'all .15s',
+                      }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6, marginBottom: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                          {sub._type === 'DIPLOMA'
+                            ? <GraduationCap size={13} color="var(--primary)" style={{ flexShrink: 0 }} />
+                            : <BookOpen size={13} color="var(--success)" style={{ flexShrink: 0 }} />}
+                          <span style={{ fontWeight: 700, fontSize: '0.74rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub._name}</span>
+                        </div>
+                        <span className={`badge ${stBadge.cls}`} style={{ fontSize: '0.5rem', flexShrink: 0 }}>{stBadge.label}</span>
+                      </div>
+                      {sub.entity?.name && <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginBottom: 6 }}>{sub.entity.name}</div>}
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.56rem', color: 'var(--text-muted)', marginBottom: 1 }}>القيمة</div>
+                          <div style={{ fontWeight: 700, fontSize: '0.72rem', fontFamily: 'monospace', direction: 'ltr', textAlign: 'right' }}>{fmt(sub.totalCost)}</div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.56rem', color: 'var(--text-muted)', marginBottom: 1 }}>دفعات</div>
+                          <div style={{ fontWeight: 600, fontSize: '0.72rem' }}>{sub.installmentsCount}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {isActive ? (
+                          <span style={{ color: 'var(--primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <CheckCircle2 size={12} /> معروض بالأقساط
+                          </span>
+                        ) : (
+                          <span>{formatDate(sub.date)}</span>
+                        )}
+                        <span style={{ marginRight: 'auto', fontFamily: 'monospace', fontSize: '0.6rem' }}>#{sub.id}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Installments of selected subscription */}
+            {selSub && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <CreditCard size={15} color="var(--success)" /> أقساط {selSub._name}
+                    <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontWeight: 400 }}>{subInstalls.length} قسط</span>
+                  </span>
+                  {canEdit && (
+                    <button className="glass-btn sm" onClick={() => openAdd(student)} style={{ fontSize: '0.7rem', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', border: 'none', color: '#fff' }}>
+                      <Plus size={13} /> إضافة قسط
+                    </button>
+                  )}
+                </div>
+
+                <div className="glass-panel" style={{ padding: 0, overflow: 'hidden', borderRadius: 12, border: '1px solid var(--glass-border)' }}>
+                  {subInstLoading ? (
+                    <div style={{ padding: 16 }}>
+                      {[0, 1, 2].map(i => (
+                        <div key={i} style={{ height: 52, borderRadius: 10, marginBottom: 8, background: 'var(--glass-border)', opacity: 0.3, animation: 'pulse 1.2s ease-in-out infinite' }} />
+                      ))}
+                    </div>
+                  ) : subInstalls.length === 0 ? (
+                    <div style={{ padding: '28px 20px', textAlign: 'center' }}>
+                      <FileText size={22} style={{ opacity: 0.2, margin: '0 auto 8px', display: 'block' }} />
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>لا توجد أقساط بعد لهذا الاشتراك</div>
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: 'min(52vh, 460px)', overflowY: 'auto' }}>
+                      {subInstalls.map(inst => {
+                        const st = ST[inst.status] || { label: inst.status, cls: 'secondary' };
+                        const isOpen = selId === inst.id;
+                        return (
+                          <div key={inst.id} onClick={() => openDetail(inst.id)}
+                            style={{
+                              padding: '10px 14px', borderBottom: '1px solid var(--glass-border)',
+                              display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', transition: 'background .12s',
+                              background: isOpen ? 'var(--glass-bg-hover)' : 'transparent',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = isOpen ? 'var(--glass-bg-hover)' : 'var(--glass-bg-hover)'}
+                            onMouseLeave={e => e.currentTarget.style.background = isOpen ? 'var(--glass-bg-hover)' : 'transparent'}>
+                            <div style={{ width: 30, height: 30, borderRadius: 9, background: isOpen ? 'var(--primary)' : 'var(--glass-bg)', color: isOpen ? '#fff' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: 700, flexShrink: 0 }}>
+                              {inst.installmentNumber}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span className={`badge ${st.cls}`} style={{ fontSize: '0.52rem', padding: '2px 7px', borderRadius: 4, fontWeight: 600 }}>{st.label}</span>
+                                {inst.paymentDest && (
+                                  <span className={`badge ${inst.paymentDest === 'ENTITY' ? 'primary' : 'teal'}`} style={{ fontSize: '0.5rem' }}>
+                                    {inst.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: 3 }}>
+                                استحقاق <strong style={{ fontFamily: 'monospace', fontSize: '0.66rem' }}>{formatDate(inst.dueDate)}</strong> • {inst.installmentNumber}/{inst.totalInstallments}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'left', flexShrink: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: '0.76rem', fontFamily: 'monospace', direction: 'ltr' }}>{fmt(inst.amount)}</div>
+                              <div style={{ fontSize: '0.62rem', fontFamily: 'monospace', direction: 'ltr', color: remOf(inst) > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                                {remOf(inst) > 0 ? `متبقي ${fmt(remOf(inst))}` : 'مسدد ✓'}
+                              </div>
+                            </div>
+                            <ChevronLeft size={15} style={{ color: 'var(--text-muted)', opacity: 0.5, flexShrink: 0 }} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      ) : (
+        <div className="glass-panel" style={{ padding: '56px 24px', textAlign: 'center', border: '1px dashed var(--glass-border)' }}>
+          <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+            <CreditCard size={30} color="var(--primary)" />
+          </div>
+          <div style={{ fontSize: '1rem', fontWeight: 700 }}>ابدأ باختيار طالب</div>
+          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.8 }}>
+            استخدم حقل البحث بالأعلى للعثور على الطالب — ثم اختر اشتراكاً من <strong>الجهة المقابلة</strong><br />
+            لعرض أقساطه وإعادة جدولتها من اللوحة الثابتة على اليمين.
+          </div>
+        </div>
+      )}
 
       {/* ═══════════════ DETAIL DRAWER ═══════════════ */}
       {drawerOpen && (
@@ -971,7 +1033,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                 {detail && <span style={{ fontFamily: 'monospace', fontWeight: 400, fontSize: '0.78rem', color: 'var(--text-muted)' }}>#{detail.id}</span>}
               </h3>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="glass-btn icon-btn sm" onClick={() => { loadList(); loadStats(); refreshDetail(); }} title="تحديث"><RefreshCw size={15} /></button>
+                <button className="glass-btn icon-btn sm" onClick={() => { refreshDetail(); }} title="تحديث"><RefreshCw size={15} /></button>
                 <button className="modal-close" onClick={closeDetail}><X size={18} /></button>
               </div>
             </div>
@@ -1093,9 +1155,9 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                       </button>
                     )}
                     {canEdit && detail.subscriptionType !== 'EXTRA' && subRemaining > 0 && (
-                      <button className="glass-btn" onClick={openSchedule}
+                      <button className="glass-btn" onClick={goReschedule}
                         style={{ flex: 1, minWidth: 110, justifyContent: 'center', fontSize: '0.76rem', padding: '9px', background: 'var(--primary)', borderColor: 'var(--primary)', color: '#fff' }}>
-                        <Calendar size={14} /> إعادة جدولة
+                        <Calendar size={14} /> لوحة الجدولة
                       </button>
                     )}
                     {canEdit && (
@@ -1464,123 +1526,6 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
         </div>
       )}
 
-      {/* ═══════════════ SCHEDULE MODAL ═══════════════ */}
-      {showSchedule && (
-        <div style={sx} onClick={e => { if (e.target === e.currentTarget) setShowSchedule(false); }}>
-          <div style={{ ...mbox, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', padding: 0 }}>
-            <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ width: 26, height: 26, borderRadius: 7, background: 'var(--primary)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Calendar size={13} /></span>
-                جدولة الأقساط
-              </h3>
-              <button className="modal-close" onClick={() => setShowSchedule(false)}><X size={16} /></button>
-            </div>
-
-            <div style={{ padding: '14px 22px', background: 'var(--glass-bg)', borderBottom: '1px solid var(--glass-border)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginBottom: 2, fontWeight: 500 }}>إجمالي المبلغ</div>
-                    <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--primary)', fontFamily: 'monospace', direction: 'ltr' }}>{fmt(scheduleTotal)} د.أ</div>
-                  </div>
-                  <div style={{ width: 1, height: 32, background: 'var(--glass-border)' }} />
-                  <div>
-                    <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginBottom: 2, fontWeight: 500 }}>عدد الدفعات</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <button className="glass-btn icon-btn xs" onClick={() => {
-                        const cnt = Math.max(scheduleMin, scheduleCount - 1);
-                        setScheduleCount(cnt);
-                        setScheduleData(distributeSchedule(cnt, scheduleTotal, scheduleData) ?? []);
-                      }} style={{ width: 26, height: 26, borderRadius: 6, fontSize: '1rem', lineHeight: 1, padding: 0, fontWeight: 700 }}>−</button>
-                      <span style={{ fontSize: '1.05rem', fontWeight: 700, minWidth: 28, textAlign: 'center' }}>{scheduleCount}</span>
-                      <button className="glass-btn icon-btn xs" onClick={() => {
-                        const cnt = scheduleCount + 1;
-                        setScheduleCount(cnt);
-                        setScheduleData(distributeSchedule(cnt, scheduleTotal, scheduleData) ?? []);
-                      }} style={{ width: 26, height: 26, borderRadius: 6, fontSize: '1rem', lineHeight: 1, padding: 0, fontWeight: 700 }}>+</button>
-                    </div>
-                  </div>
-                </div>
-                <div style={{
-                  padding: '6px 14px', borderRadius: 8,
-                  background: scheduleData.reduce((s, d) => s + d.amount, 0) === scheduleTotal ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-                  color: scheduleData.reduce((s, d) => s + d.amount, 0) === scheduleTotal ? 'var(--success)' : 'var(--danger)',
-                  fontSize: '0.7rem', fontWeight: 600, fontFamily: 'monospace',
-                }}>
-                  {scheduleData.reduce((s, d) => s + d.amount, 0).toFixed(2)} / {fmt(scheduleTotal)}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ padding: '16px 22px', maxHeight: 420, overflowY: 'auto' }}>
-              {scheduleData.length === 0 ? (
-                <div style={{ padding: '30px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <Calendar size={22} style={{ opacity: 0.25, margin: '0 auto 6px', display: 'block' }} />
-                  <div style={{ fontSize: '0.82rem' }}>لا توجد أقساط للجدولة</div>
-                </div>
-              ) : (
-                scheduleData.map((s, idx) => (
-                  <div key={s.id || `new-${idx}`} style={{
-                    padding: '12px 14px', marginBottom: 10, borderRadius: 12,
-                    background: 'var(--card-bg)',
-                    border: '1px solid var(--glass-border)',
-                    transition: 'border-color 0.2s',
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{
-                          width: 20, height: 20, borderRadius: '50%',
-                          background: s.id ? 'var(--primary)' : 'var(--success)',
-                          color: '#fff', fontSize: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
-                        }}>{idx + 1}</span>
-                        {s.id ? `القسط الحالي #${idx + 1}` : 'قسط جديد'}
-                      </span>
-                      <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                        {scheduleData.slice(0, idx + 1).reduce((sum, x) => sum + x.amount, 0).toFixed(2)} تراكمي
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                        <label className="form-label">المبلغ (د.أ)</label>
-                        <input type="text" inputMode="decimal" className="glass-input" value={s.amount}
-                          onChange={e => {
-                            const newData = [...scheduleData];
-                            newData[idx] = { ...newData[idx], amount: toNumber(e.target.value) };
-                            setScheduleData(newData);
-                          }}
-                          style={{ direction: 'ltr', fontSize: '0.82rem', fontWeight: 600 }} />
-                      </div>
-                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                        <label className="form-label">تاريخ الاستحقاق</label>
-                        <DateField value={s.dueDate}
-                          onChange={v => {
-                            const newData = [...scheduleData];
-                            newData[idx] = { ...newData[idx], dueDate: v };
-                            setScheduleData(newData);
-                          }}
-                          selectStyle={{ fontSize: '0.82rem' }} />
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div style={{ padding: '12px 22px', borderTop: '1px solid var(--glass-border)', display: 'flex', gap: 8, background: 'var(--card-bg)', borderRadius: '0 0 22px 22px' }}>
-              {canEdit && (
-                <button className="glass-btn" onClick={handleScheduleSave} disabled={saving || scheduleData.length === 0}
-                  style={{ flex: 1, justifyContent: 'center', fontSize: '0.82rem', padding: '11px', background: 'var(--primary)', borderColor: 'var(--primary)', color: '#fff' }}>
-                  <Save size={15} /> {saving ? 'جارٍ الحفظ...' : 'حفظ جدولة الأقساط'}
-                </button>
-              )}
-              <button className="glass-btn secondary" onClick={() => setShowSchedule(false)} style={{ fontSize: '0.82rem', padding: '11px 18px' }}>
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <DeepSearchModal
         isOpen={isDeep}
         onClose={() => setIsDeep(false)}
@@ -1591,3 +1536,9 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
     </div>
   );
 };
+
+const ListChip = () => (
+  <span style={{ width: 16, height: 16, borderRadius: 4, background: 'var(--primary-light)', color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+    <Banknote size={9} />
+  </span>
+);
