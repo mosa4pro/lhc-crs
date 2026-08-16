@@ -560,13 +560,25 @@ router.put('/:id/void', authMiddleware, requirePermission('finance.receipts'), a
 router.get('/students/:studentId/installment-balance', authMiddleware, requirePermission('finance.installments'), async (req, res) => {
   try {
     const studentId = req.params.studentId as string;
-    const installments = await prisma.installment.findMany({
-      where: { studentId, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
-      orderBy: { dueDate: 'asc' }
-    });
     const remOf = (i: any) => Math.max(0, (i.amount || 0) - (i.paidAmount || 0));
-    const balance = installments.reduce((sum, inst) => sum + remOf(inst), 0);
-    return res.json({ balance, installments, totalInstallments: installments.length });
+    const [diplomaSubs, courseSubs, installments] = await Promise.all([
+      prisma.diplomaSubscription.findMany({ where: { studentId, status: { in: ['ACTIVE', 'POSTPONED'] } }, select: { id: true, totalCost: true } }),
+      prisma.courseSubscription.findMany({ where: { studentId, status: { in: ['ACTIVE', 'POSTPONED'] } }, select: { id: true, totalCost: true } }),
+      prisma.installment.findMany({ where: { studentId } }),
+    ]);
+    let balance = installments
+      .filter(i => i.subscriptionType === 'EXTRA')
+      .reduce((s, i) => s + remOf(i), 0);
+    for (const sub of [...diplomaSubs, ...courseSubs]) {
+      const paid = installments
+        .filter(i => String(i.subscriptionId) === String(sub.id))
+        .reduce((s, i) => s + (i.paidAmount || 0), 0);
+      balance += Math.max(0, (sub.totalCost || 0) - paid);
+    }
+    const unpaidInsts = installments
+      .filter(i => i.status !== 'PAID' && remOf(i) > 0)
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    return res.json({ balance, installments: unpaidInsts, totalInstallments: unpaidInsts.length });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'خطأ في جلب رصيد الطالب' });
   }
@@ -588,10 +600,52 @@ router.post('/pay-student', authMiddleware, requirePermission('finance.receipts'
 
     // Get unpaid installments ordered by due date (FIFO)
     const remOf = (i: any) => Math.max(0, (i.amount || 0) - (i.paidAmount || 0));
-    const installments = (await prisma.installment.findMany({
+    const unpaid = (await prisma.installment.findMany({
       where: { studentId, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
       orderBy: { dueDate: 'asc' }
     })).filter(i => remOf(i) > 0);
+
+    let installments = unpaid;
+    let covered = unpaid.reduce((s, i) => s + remOf(i), 0);
+
+    // If the payment exceeds the covered installments, top up new installments
+    // for any uncovered balance on active subscriptions so lump payments work.
+    if (payAmount > covered) {
+      const [diplomaSubs, courseSubs, allInsts] = await Promise.all([
+        prisma.diplomaSubscription.findMany({ where: { studentId, status: { in: ['ACTIVE', 'POSTPONED'] } }, select: { id: true, totalCost: true } }),
+        prisma.courseSubscription.findMany({ where: { studentId, status: { in: ['ACTIVE', 'POSTPONED'] } }, select: { id: true, totalCost: true } }),
+        prisma.installment.findMany({ where: { studentId } }),
+      ]);
+      const allSubs = [
+        ...diplomaSubs.map(s => ({ ...s, type: 'DIPLOMA' as const })),
+        ...courseSubs.map(s => ({ ...s, type: 'COURSE' as const })),
+      ];
+      for (const sub of allSubs) {
+        if (payAmount <= covered) break;
+        const paid = allInsts
+          .filter(i => String(i.subscriptionId) === String(sub.id))
+          .reduce((s, i) => s + (i.paidAmount || 0), 0);
+        const uncovered = Math.max(0, (sub.totalCost || 0) - paid);
+        const topUp = Math.min(uncovered, payAmount - covered);
+        if (topUp > 0) {
+          const created = await prisma.installment.create({
+            data: {
+              studentId,
+              subscriptionId: String(sub.id),
+              subscriptionType: sub.type,
+              installmentNumber: 1,
+              totalInstallments: 1,
+              dueDate: new Date(),
+              amount: topUp,
+              remainingAmount: topUp,
+              status: 'PENDING',
+            },
+          });
+          installments.push(created);
+          covered += topUp;
+        }
+      }
+    }
 
     if (installments.length === 0) return res.status(400).json({ error: 'لا توجد دفعات مستحقة لهذا الطالب' });
 

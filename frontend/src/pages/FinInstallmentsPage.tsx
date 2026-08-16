@@ -421,6 +421,9 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
   const isU = selInst && (selInst.status === 'PENDING' || selInst.status === 'PARTIAL' || selInst.status === 'OVERDUE');
   const remOf = (i: Inst) => Math.max(0, (i.amount || 0) - (i.paidAmount || 0));
   const unpaidInsts = insts.filter(i => remOf(i) > 0);
+  const subTotalCost = (selSub as any)?.totalCost || 0;
+  const subTotalPaid = insts.reduce((s, i) => s + (i.paidAmount || 0), 0);
+  const subRemaining = Math.max(0, subTotalCost - subTotalPaid);
 
   const distributeSchedule = useCallback((count: number, total: number, baseData: typeof scheduleData, unpaid: Inst[] = unpaidInsts) => {
     if (count < 1) return;
@@ -466,11 +469,14 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
     const r = await apiFetch(`/installments?subscriptionId=${String(sub.id)}`);
     const list: Inst[] = Array.isArray(r) ? r : [];
     setInsts(list);
+    const totalPaid = list.reduce((s, i) => s + (i.paidAmount || 0), 0);
+    const total = Math.max(0, ((sub as any).totalCost || 0) - totalPaid);
+    if (total <= 0) { toast.info('لا توجد أقساط متبقية لهذا الاشتراك'); return; }
     const unpaid = list.filter(i => remOf(i) > 0);
-    if (unpaid.length === 0) { toast.info('لا توجد أقساط متبقية لهذا الاشتراك'); return; }
-    const total = unpaid.reduce((s, i) => s + remOf(i), 0);
-    setScheduleData(distributeSchedule(unpaid.length, total, unpaid.map(i => ({ id: i.id, amount: i.amount, dueDate: i.dueDate.split('T')[0] })), unpaid) ?? []);
-    setScheduleCount(unpaid.length);
+    const cnt = Math.max(unpaid.length, 1);
+    const baseData = unpaid.length > 0 ? unpaid.map(i => ({ id: i.id, amount: i.amount, dueDate: i.dueDate.split('T')[0] })) : [];
+    setScheduleData(distributeSchedule(cnt, total, baseData, unpaid) ?? []);
+    setScheduleCount(cnt);
     setScheduleMin(Math.max(1, unpaid.filter(i => i.paidAmount > 0).length));
     setScheduleTotal(total);
     setShowSchedule(true);
@@ -993,7 +999,8 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                           const isD = !!(sub as any).diploma;
                           const active = selSub?.id === sub.id && selSub?.id !== 'EXTRA';
                           const subInsts = allInsts.filter(i => String(i.subscriptionId) === String(sub.id));
-                          const remainingAmt = subInsts.reduce((s, i) => s + remOf(i), 0);
+                          const totalPaid = subInsts.reduce((s, i) => s + (i.paidAmount || 0), 0);
+                          const remainingAmt = Math.max(0, ((sub as any).totalCost || 0) - totalPaid);
                           const unpaidCount = subInsts.filter(i => remOf(i) > 0).length;
                           return (
                           <tr key={String(sub.id)} onClick={() => selectSub(sub)} style={{ cursor: 'pointer' }} className={active ? 'active' : ''}>
@@ -1078,14 +1085,14 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                   <CreditCard size={14} color="var(--secondary)" />
                   <span>{selSub.id === 'EXTRA' ? 'الرسوم الإضافية' : `أقساط ${subName(selSub)}`}</span>
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>({insts.length})</span>
-                  {unpaidInsts.length >= 1 && selSub.id !== 'EXTRA' && (
+                  {subRemaining > 0 && selSub.id !== 'EXTRA' && (
                     <button onClick={() => {
-                      const cnt = unpaidInsts.length;
-                      const total = unpaidInsts.reduce((s, i) => s + remOf(i), 0);
-                      setScheduleData(distributeSchedule(cnt, total, unpaidInsts.map(i => ({ id: i.id, amount: i.amount, dueDate: i.dueDate.split('T')[0] }))) ?? []);
+                      const cnt = Math.max(unpaidInsts.length, 1);
+                      const baseData = unpaidInsts.length > 0 ? unpaidInsts.map(i => ({ id: i.id, amount: i.amount, dueDate: i.dueDate.split('T')[0] })) : [];
+                      setScheduleData(distributeSchedule(cnt, subRemaining, baseData) ?? []);
                       setScheduleCount(cnt);
                       setScheduleMin(Math.max(1, unpaidInsts.filter(i => i.paidAmount > 0).length));
-                      setScheduleTotal(total);
+                      setScheduleTotal(subRemaining);
                       setShowSchedule(true);
                     }} style={{
                       marginRight: 'auto', padding: '8px 24px', borderRadius: 12, cursor: 'pointer',
@@ -1108,6 +1115,33 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                     </button>
                   )}
                 </div>
+
+                {/* Summary of subscription balance */}
+                {selSub.id !== 'EXTRA' && (
+                  <div style={{
+                    display: 'flex', gap: 10, flexWrap: 'wrap',
+                    padding: '10px 14px', borderRadius: 12, marginBottom: 12,
+                    background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
+                  }}>
+                    <div style={{ flex: 1, minWidth: 90 }}>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginBottom: 2 }}>قيمة الاشتراك</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem', direction: 'ltr', fontFamily: 'monospace' }}>{subTotalCost.toFixed(2)}</div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 90 }}>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginBottom: 2 }}>المدفوع</div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--success)', direction: 'ltr', fontFamily: 'monospace' }}>{subTotalPaid.toFixed(2)}</div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 90 }}>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginBottom: 2 }}>المتبقي</div>
+                      <div style={{
+                        fontWeight: 700, fontSize: '0.85rem',
+                        color: subRemaining > 0 ? 'var(--danger)' : 'var(--success)',
+                        direction: 'ltr', fontFamily: 'monospace',
+                      }}>{subRemaining > 0 ? subRemaining.toFixed(2) : '0.00'}</div>
+                    </div>
+                  </div>
+                )}
+
                 {insts.length === 0 ? (
                   <div className="empty-state" style={{ padding: '30px 20px', background: 'var(--glass-bg)', borderRadius: 10 }}>
                     <p style={{ fontSize: '0.82rem' }}>{selSub.id === 'EXTRA' ? 'لا توجد رسوم إضافية' : 'لا توجد أقساط'}</p>
