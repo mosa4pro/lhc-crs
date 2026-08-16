@@ -153,7 +153,7 @@ export const FinInstallmentsPage = () => {
     setEAmt(String(inst.amount)); setEDue(inst.dueDate.split('T')[0]); setENotes(inst.notes || '');
     loadTxs(inst.id);
     setPayActive(false);
-    setPayAmount(String(inst.remainingAmount));
+    setPayAmount(String(remOf(inst)));
     setPayDest('');
     setPayMethod('CASH');
     setPaySubMethod('');
@@ -209,6 +209,7 @@ export const FinInstallmentsPage = () => {
         else loadInsts(String(selSub.id));
       }
       fetchBal(student.id);
+      loadAllInsts(student.id);
       return true;
     } catch (err: any) { toast.error('فشل', err.message); return false; }
     finally { setLoading(false); }
@@ -302,6 +303,7 @@ export const FinInstallmentsPage = () => {
       setShowSchedule(false);
       loadInsts(String(selSub.id));
       fetchBal(student.id);
+      loadAllInsts(student.id);
     } catch (err: any) { toast.error('فشل', err.message); }
     finally { setSaving(false); }
   };
@@ -375,6 +377,7 @@ export const FinInstallmentsPage = () => {
         loadInsts(String(selSub.id));
       }
       fetchBal(student.id);
+      loadAllInsts(student.id);
       loadTxs(selInst.id);
       setPayActive(false);
     } catch (err: any) { toast.error('فشل', err.message); }
@@ -416,13 +419,14 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
   }, []);
 
   const isU = selInst && (selInst.status === 'PENDING' || selInst.status === 'PARTIAL' || selInst.status === 'OVERDUE');
-  const unpaidInsts = insts.filter(i => i.remainingAmount > 0);
+  const remOf = (i: Inst) => Math.max(0, (i.amount || 0) - (i.paidAmount || 0));
+  const unpaidInsts = insts.filter(i => remOf(i) > 0);
 
-  const distributeSchedule = useCallback((count: number, total: number, baseData: typeof scheduleData) => {
+  const distributeSchedule = useCallback((count: number, total: number, baseData: typeof scheduleData, unpaid: Inst[] = unpaidInsts) => {
     if (count < 1) return;
     // Mirror SubscriptionPage.baseAmounts: the first installment keeps its
     // "دفعة أولى" value when it is installment #1 and still fully unpaid.
-    const firstUnpaid = unpaidInsts[0];
+    const firstUnpaid = unpaid[0];
     const firstIsDownPayment = !!firstUnpaid && firstUnpaid.installmentNumber === 1 && firstUnpaid.paidAmount === 0;
     const downAmount = firstIsDownPayment ? firstUnpaid.amount : null;
 
@@ -455,6 +459,22 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
     }
     return data;
   }, [unpaidInsts]);
+
+  const openScheduleFromSub = async (sub: Sub) => {
+    if (!student || sub.id === 'EXTRA') return;
+    setSelSub(sub); setSelInst(null); setTxs([]);
+    const r = await apiFetch(`/installments?subscriptionId=${String(sub.id)}`);
+    const list: Inst[] = Array.isArray(r) ? r : [];
+    setInsts(list);
+    const unpaid = list.filter(i => remOf(i) > 0);
+    if (unpaid.length === 0) { toast.info('لا توجد أقساط متبقية لهذا الاشتراك'); return; }
+    const total = unpaid.reduce((s, i) => s + remOf(i), 0);
+    setScheduleData(distributeSchedule(unpaid.length, total, unpaid.map(i => ({ id: i.id, amount: i.amount, dueDate: i.dueDate.split('T')[0] })), unpaid) ?? []);
+    setScheduleCount(unpaid.length);
+    setScheduleMin(Math.max(1, unpaid.filter(i => i.paidAmount > 0).length));
+    setScheduleTotal(total);
+    setShowSchedule(true);
+  };
 
   return (
     <div className="split-layout" style={{ gap: 0, alignItems: 'stretch', minHeight: 'calc(100vh - 140px)' }}>
@@ -683,7 +703,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                   <div className="grid-2" style={{ gap: '6px 16px', fontSize: '0.78rem' }}>
                     <div><span className="text-muted">المبلغ:</span> <strong>{selInst.amount.toFixed(2)}</strong></div>
                     <div><span className="text-muted">المدفوع:</span> <strong style={{ color: 'var(--success)' }}>{selInst.paidAmount.toFixed(2)}</strong></div>
-                    <div><span className="text-muted">المتبقي:</span> <strong style={{ color: 'var(--danger)' }}>{selInst.remainingAmount.toFixed(2)}</strong></div>
+                    <div><span className="text-muted">المتبقي:</span> <strong style={{ color: 'var(--danger)' }}>{remOf(selInst).toFixed(2)}</strong></div>
                     <div><span className="text-muted">الاستحقاق:</span> <strong>{formatDate(selInst.dueDate)}</strong></div>
                     {selInst.paymentDate && <div><span className="text-muted">تاريخ الدفع:</span> <strong>{formatDate(selInst.paymentDate)}</strong></div>}
                     {selInst.paymentMethod && (
@@ -973,8 +993,8 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                           const isD = !!(sub as any).diploma;
                           const active = selSub?.id === sub.id && selSub?.id !== 'EXTRA';
                           const subInsts = allInsts.filter(i => String(i.subscriptionId) === String(sub.id));
-                          const remainingAmt = subInsts.reduce((s, i) => s + i.remainingAmount, 0);
-                          const unpaidCount = subInsts.filter(i => i.remainingAmount > 0).length;
+                          const remainingAmt = subInsts.reduce((s, i) => s + remOf(i), 0);
+                          const unpaidCount = subInsts.filter(i => remOf(i) > 0).length;
                           return (
                           <tr key={String(sub.id)} onClick={() => selectSub(sub)} style={{ cursor: 'pointer' }} className={active ? 'active' : ''}>
                             <td><span className={`badge ${isD ? 'primary' : 'success'}`} style={{ fontSize: '0.55rem' }}>{isD ? 'دبلوم' : 'دورة'}</span></td>
@@ -983,9 +1003,24 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                             <td>{(sub as any).installmentsCount || 0}</td>
                             <td style={{ textAlign: 'center' }}>
                               {remainingAmt > 0 ? (
-                                <span style={{ color: 'var(--danger)', fontSize: '0.68rem', fontWeight: 600, direction: 'ltr', fontFamily: 'monospace' }}>
-                                  {remainingAmt.toFixed(2)}
-                                  {unpaidCount > 1 && <span style={{ color: 'var(--text-muted)', marginRight: 3, fontSize: '0.6rem' }}>({unpaidCount})</span>}
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ color: 'var(--danger)', fontSize: '0.68rem', fontWeight: 600, direction: 'ltr', fontFamily: 'monospace' }}>
+                                    {remainingAmt.toFixed(2)}
+                                    {unpaidCount > 1 && <span style={{ color: 'var(--text-muted)', marginRight: 3, fontSize: '0.6rem' }}>({unpaidCount})</span>}
+                                  </span>
+                                  <button
+                                    title="إعادة جدولة أقساط هذا الاشتراك"
+                                    onClick={e => { e.stopPropagation(); openScheduleFromSub(sub); }}
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                      width: 22, height: 22, borderRadius: 6, padding: 0, cursor: 'pointer',
+                                      border: '1px solid var(--glass-border)', background: 'transparent',
+                                      color: 'var(--secondary)', transition: 'all .15s',
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--primary-light)'; e.currentTarget.style.borderColor = 'var(--secondary)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--glass-border)'; }}>
+                                    <Calendar size={12} />
+                                  </button>
                                 </span>
                               ) : (
                                 <span style={{ color: 'var(--success)', fontSize: '0.7rem', fontWeight: 600 }}>✓</span>
@@ -1046,7 +1081,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                   {unpaidInsts.length >= 1 && selSub.id !== 'EXTRA' && (
                     <button onClick={() => {
                       const cnt = unpaidInsts.length;
-                      const total = unpaidInsts.reduce((s, i) => s + i.remainingAmount, 0);
+                      const total = unpaidInsts.reduce((s, i) => s + remOf(i), 0);
                       setScheduleData(distributeSchedule(cnt, total, unpaidInsts.map(i => ({ id: i.id, amount: i.amount, dueDate: i.dueDate.split('T')[0] }))) ?? []);
                       setScheduleCount(cnt);
                       setScheduleMin(Math.max(1, unpaidInsts.filter(i => i.paidAmount > 0).length));
@@ -1094,7 +1129,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                               <td>{cat ? <span className={`badge ${cat.cls}`} style={{ fontSize: '0.5rem' }}>{cat.label}</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>—</span>}</td>
                               <td style={{ direction: 'ltr', fontFamily: 'monospace' }}>{inst.amount.toFixed(2)}</td>
                               <td style={{ direction: 'ltr', fontFamily: 'monospace', color: inst.paidAmount > 0 ? 'var(--success)' : 'var(--text-muted)' }}>{inst.paidAmount > 0 ? inst.paidAmount.toFixed(2) : '—'}</td>
-                              <td style={{ direction: 'ltr', fontFamily: 'monospace', color: inst.remainingAmount > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{inst.remainingAmount > 0 ? inst.remainingAmount.toFixed(2) : '—'}</td>
+                              <td style={{ direction: 'ltr', fontFamily: 'monospace', color: remOf(inst) > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{remOf(inst) > 0 ? remOf(inst).toFixed(2) : '—'}</td>
                               <td style={{ fontSize: '0.65rem' }}>{formatDate(inst.dueDate)}</td>
                               <td><span className={`badge ${st.cls}`} style={{ fontSize: '0.52rem' }}>{st.label}</span></td>
                             </tr>

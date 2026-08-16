@@ -564,7 +564,8 @@ router.get('/students/:studentId/installment-balance', authMiddleware, requirePe
       where: { studentId, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
       orderBy: { dueDate: 'asc' }
     });
-    const balance = installments.reduce((sum, inst) => sum + inst.remainingAmount, 0);
+    const remOf = (i: any) => Math.max(0, (i.amount || 0) - (i.paidAmount || 0));
+    const balance = installments.reduce((sum, inst) => sum + remOf(inst), 0);
     return res.json({ balance, installments, totalInstallments: installments.length });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'خطأ في جلب رصيد الطالب' });
@@ -586,14 +587,15 @@ router.post('/pay-student', authMiddleware, requirePermission('finance.receipts'
     if (existing) return res.status(400).json({ error: 'رقم المرجع مستخدم مسبقاً في معاملة أخرى' });
 
     // Get unpaid installments ordered by due date (FIFO)
-    const installments = await prisma.installment.findMany({
+    const remOf = (i: any) => Math.max(0, (i.amount || 0) - (i.paidAmount || 0));
+    const installments = (await prisma.installment.findMany({
       where: { studentId, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
       orderBy: { dueDate: 'asc' }
-    });
+    })).filter(i => remOf(i) > 0);
 
     if (installments.length === 0) return res.status(400).json({ error: 'لا توجد دفعات مستحقة لهذا الطالب' });
 
-    const totalRemaining = installments.reduce((s, i) => s + i.remainingAmount, 0);
+    const totalRemaining = installments.reduce((s, i) => s + remOf(i), 0);
     if (payAmount > totalRemaining) return res.status(400).json({ error: `المبلغ المدفوع (${payAmount}) أكبر من الرصيد المستحق (${totalRemaining})` });
 
     let remaining = payAmount;
@@ -602,9 +604,10 @@ router.post('/pay-student', authMiddleware, requirePermission('finance.receipts'
     // Deduct from installments FIFO
     for (const inst of installments) {
       if (remaining <= 0) break;
-      const deduct = Math.min(remaining, inst.remainingAmount);
+      const curRem = remOf(inst);
+      const deduct = Math.min(remaining, curRem);
       const newPaid = inst.paidAmount + deduct;
-      const newRemaining = inst.remainingAmount - deduct;
+      const newRemaining = curRem - deduct;
       const newStatus = newRemaining === 0 ? 'PAID' : 'PARTIAL';
 
       await prisma.installment.update({
