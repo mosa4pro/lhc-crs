@@ -632,6 +632,7 @@ router.post('/pay-student', authMiddleware, requirePermission('finance.receipts'
     const transaction = await prisma.financialTransaction.create({
       data: {
         studentId,
+        installmentId: updatedInsts.length > 0 ? updatedInsts[0].id : null,
         type: 'RECEIPT',
         amount: payAmount,
         paymentMethod: paymentMethod || 'CASH',

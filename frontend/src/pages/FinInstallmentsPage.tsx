@@ -8,6 +8,7 @@ import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { DeepSearchModal } from '../components/DeepSearchModal';
 import { formatDate } from '../utils/dateFormat';
+import { toNumber } from '../utils/arabicNumbers';
 import { useSearchParams } from 'react-router-dom';
 
 interface Sub { id: number | string; studentId: string; baseFee: number; totalCost: number; paymentType: string; installmentsCount: number; date: string; status: string; notes?: string; diploma?: { id: string; name: string }; course?: { id: string; name: string }; entity?: { id: number; name: string }; }
@@ -47,6 +48,7 @@ export const FinInstallmentsPage = () => {
   const [subs, setSubs] = useState<Sub[]>([]);
   const [selSub, setSelSub] = useState<Sub | null>(null);
   const [insts, setInsts] = useState<Inst[]>([]);
+  const [allInsts, setAllInsts] = useState<Inst[]>([]);
   const [selInst, setSelInst] = useState<Inst | null>(null);
   const [txs, setTxs] = useState<any[]>([]);
 
@@ -71,7 +73,7 @@ export const FinInstallmentsPage = () => {
   // Payment form state (matching SubscriptionPage pattern)
   const [payActive, setPayActive] = useState(false);
   const [payAmount, setPayAmount] = useState('');
-  const [payDest, setPayDest] = useState<'ENTITY' | 'US'>('ENTITY');
+  const [payDest, setPayDest] = useState<'' | 'ENTITY' | 'US'>('');
   const [payMethod, setPayMethod] = useState<string>('CASH');
   const [paySubMethod, setPaySubMethod] = useState('');
   const [payRef, setPayRef] = useState('');
@@ -80,8 +82,6 @@ export const FinInstallmentsPage = () => {
   const [payCheckNum, setPayCheckNum] = useState('');
   const [payHawalaNum, setPayHawalaNum] = useState('');
   const [payNotes, setPayNotes] = useState('');
-  const [payExpenses, setPayExpenses] = useState('');
-  const [payExpCat, setPayExpCat] = useState('');
   const [payLoading, setPayLoading] = useState(false);
 
   const searchStudents = useCallback(async (q: string) => {
@@ -109,6 +109,10 @@ export const FinInstallmentsPage = () => {
     try { const r = await apiFetch(`/installments/${id}/transactions`); setTxs(Array.isArray(r) ? r : []); } catch { setTxs([]); }
   }, [apiFetch]);
 
+  const loadAllInsts = useCallback(async (sid: string) => {
+    try { const r = await apiFetch(`/installments?studentId=${sid}`); setAllInsts(Array.isArray(r) ? r : []); } catch { setAllInsts([]); }
+  }, [apiFetch]);
+
   const fetchBal = useCallback(async (sid: string) => {
     try { const r = await apiFetch(`/financial/students/${sid}/installment-balance`); if (r) { setBalance(r.balance); setBalC(r.totalInstallments); } else { setBalance(null); setBalC(0); } } catch { setBalance(null); setBalC(0); }
   }, [apiFetch]);
@@ -118,8 +122,8 @@ export const FinInstallmentsPage = () => {
     setSelSub(null); setInsts([]); setSelInst(null); setTxs([]);
     setAAmt(''); setADue(''); setANotes(''); setACategory('SUBSCRIPTION');
     setAddMode(false);
-    loadSubs(s.id); fetchBal(s.id);
-  }, [loadSubs, fetchBal]);
+    loadSubs(s.id); fetchBal(s.id); loadAllInsts(s.id);
+  }, [loadSubs, fetchBal, loadAllInsts]);
 
   // ── Open with preselected student (from student profile quick access) ──
   const [searchParams] = useSearchParams();
@@ -148,7 +152,7 @@ export const FinInstallmentsPage = () => {
     loadTxs(inst.id);
     setPayActive(false);
     setPayAmount(String(inst.remainingAmount));
-    setPayDest('ENTITY');
+    setPayDest('');
     setPayMethod('CASH');
     setPaySubMethod('');
     setPayRef('');
@@ -157,8 +161,6 @@ export const FinInstallmentsPage = () => {
     setPayCheckNum('');
     setPayHawalaNum('');
     setPayNotes('');
-    setPayExpenses('');
-    setPayExpCat('');
   }, [loadTxs]);
 
   const refresh = useCallback(() => {
@@ -171,16 +173,29 @@ export const FinInstallmentsPage = () => {
       }
     }
     fetchBal(student.id);
-  }, [student, selSub, loadInsts, fetchBal]);
+    loadAllInsts(student.id);
+  }, [student, selSub, loadInsts, fetchBal, loadAllInsts]);
 
   const handleAdd = async () => {
     if (!student) return false;
     if (aCategory === 'SUBSCRIPTION' && !selSub) { toast.error('اختر الاشتراك أولاً'); return false; }
-    if (!aAmt || parseFloat(aAmt) <= 0) { toast.error('المبلغ مطلوب'); return false; }
+    const amt = toNumber(aAmt);
+    if (!amt || amt <= 0) { toast.error('المبلغ مطلوب'); return false; }
     if (!aDue) { toast.error('التاريخ مطلوب'); return false; }
+    if (aCategory === 'SUBSCRIPTION' && selSub) {
+      try {
+        const existing = await apiFetch(`/installments?subscriptionId=${String(selSub.id)}`);
+        const existingTotal = (Array.isArray(existing) ? existing : []).reduce((s: number, i: any) => s + (i.amount || 0), 0);
+        const cap = (selSub.totalCost || 0);
+        if (existingTotal + amt > cap + 0.001) {
+          toast.error(`لا يمكن زيادة الأقساط عن قيمة الاشتراك: المجموع الحالي ${existingTotal.toFixed(2)} + ${amt.toFixed(2)} يتجاوز ${cap.toFixed(2)} د.أ`);
+          return false;
+        }
+      } catch { /* allow server to reject if fetch fails */ }
+    }
     setLoading(true);
     try {
-      const body: any = { studentId: student.id, dueDate: aDue, amount: parseFloat(aAmt), notes: aNotes || undefined, category: aCategory };
+      const body: any = { studentId: student.id, dueDate: aDue, amount: amt, notes: aNotes || undefined, category: aCategory };
       if (aCategory === 'SUBSCRIPTION' && selSub) {
         body.subscriptionType = (selSub as any).diploma ? 'DIPLOMA' : 'COURSE';
         body.subscriptionId = String(selSub.id);
@@ -199,11 +214,27 @@ export const FinInstallmentsPage = () => {
 
   const handleEdit = async () => {
     if (!selInst) return;
+    const newAmt = toNumber(eAmt);
+    if (!newAmt || newAmt <= 0) { toast.error('المبلغ مطلوب'); return; }
+    if (selInst.subscriptionType && selInst.subscriptionType !== 'EXTRA') {
+      const sub = subs.find(s => String(s.id) === String(selInst.subscriptionId));
+      const cap = (sub as any)?.totalCost || 0;
+      const subInsts = insts.filter(i => String(i.subscriptionId) === String(selInst.subscriptionId) && i.subscriptionType === selInst.subscriptionType);
+      const newTotal = subInsts.reduce((s, i) => s + i.amount, 0) - selInst.amount + newAmt;
+      if (cap > 0 && newTotal < cap - 0.001) {
+        toast.error(`لا يمكن التعديل: إجمالي الأقساط سيصبح (${newTotal.toFixed(2)}) أقل من قيمة الاشتراك (${cap.toFixed(2)})`);
+        return;
+      }
+      if (cap > 0 && newTotal > cap + 0.001) {
+        toast.error(`لا يمكن التعديل: إجمالي الأقساط سيصبح (${newTotal.toFixed(2)}) أكبر من قيمة الاشتراك (${cap.toFixed(2)})`);
+        return;
+      }
+    }
     setSaving(true);
     try {
       await apiFetch(`/installments/${selInst.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ amount: parseFloat(eAmt), dueDate: eDue, notes: eNotes || undefined })
+        body: JSON.stringify({ amount: newAmt, dueDate: eDue, notes: eNotes || undefined })
       });
       toast.success('تم الحفظ'); refresh();
     } catch (err: any) { toast.error('فشل', err.message); }
@@ -212,6 +243,12 @@ export const FinInstallmentsPage = () => {
 
   const handleScheduleSave = async () => {
     if (!selSub || !student) return;
+    if (scheduleData.some(d => !d.amount || d.amount <= 0)) { toast.error('جميع مبالغ الأقساط يجب أن تكون أكبر من صفر'); return; }
+    const sum = scheduleData.reduce((s, d) => s + d.amount, 0);
+    if (Math.abs(sum - scheduleTotal) > 0.01) {
+      toast.error(`مجموع الأقساط (${sum.toFixed(2)}) لا يساوي المبلغ المتبقي (${scheduleTotal.toFixed(2)})`);
+      return;
+    }
     const currentUnpaid = unpaidInsts;
     const newCount = scheduleData.length;
     setSaving(true);
@@ -246,7 +283,7 @@ export const FinInstallmentsPage = () => {
       if (newCount < currentUnpaid.length) {
         const toDelete = currentUnpaid.slice(newCount);
         for (const inst of toDelete) {
-          try { await apiFetch(`/installments/${inst.id}`, { method: 'DELETE' }); } catch {}
+          try { await apiFetch(`/installments/${inst.id}?merge=true`, { method: 'DELETE' }); } catch {}
         }
       }
 
@@ -260,6 +297,16 @@ export const FinInstallmentsPage = () => {
 
   const handleDelete = async () => {
     if (!selInst) return;
+    if (selInst.subscriptionType && selInst.subscriptionType !== 'EXTRA') {
+      const sub = subs.find(s => String(s.id) === String(selInst.subscriptionId));
+      const cap = (sub as any)?.totalCost || 0;
+      const subInsts = insts.filter(i => String(i.subscriptionId) === String(selInst.subscriptionId) && i.subscriptionType === selInst.subscriptionType);
+      const newTotal = subInsts.reduce((s, i) => s + i.amount, 0) - selInst.amount;
+      if (cap > 0 && newTotal < cap - 0.001) {
+        toast.error(`لا يمكن حذف القسط: إجمالي الأقساط سيصبح (${newTotal.toFixed(2)}) أقل من قيمة الاشتراك (${cap.toFixed(2)})`);
+        return;
+      }
+    }
     if (!window.confirm('حذف القسط؟')) return;
     setSaving(true);
     try { await apiFetch(`/installments/${selInst.id}`, { method: 'DELETE' }); toast.success('تم الحذف'); setSelInst(null); refresh(); } catch (err: any) { toast.error('فشل', err.message); }
@@ -268,17 +315,18 @@ export const FinInstallmentsPage = () => {
 
   const handlePay = async () => {
     if (!selInst || !student) return;
-    if (!payAmount || parseFloat(payAmount) <= 0) { toast.error('المبلغ مطلوب'); return; }
-    if (payDest === 'ENTITY') {
-      // CASH to entity — accept without reference but warn
-      if (!payRef.trim()) {
-        const ok = window.confirm('لم يتم إدخال رقم المرجع. هل تريد متابعة تسجيل الدفعة بدون رقم مرجع؟');
-        if (!ok) return;
-      }
-    } else if (payDest === 'US') {
+    const amt = toNumber(payAmount);
+    if (!amt || amt <= 0) { toast.error('المبلغ مطلوب'); return; }
+    if (!payDest) { toast.error('اختر جهة الدفع (جهة التعليم أو لدينا)'); return; }
+    if (!payRef.trim()) { toast.error('رقم المرجع مطلوب'); return; }
+    if (payDest === 'US') {
       if (payMethod === 'TRANSFER' && !paySubMethod) { toast.error('يرجى اختيار نوع المحفظة الإلكترونية'); return; }
       if (payMethod === 'CHECK') { if (!payBank) { toast.error('يرجى اختيار البنك'); return; } if (!payCheckNum.trim()) { toast.error('رقم الشيك مطلوب'); return; } }
       if (payMethod === 'MONEY_TRANSFER') { if (!paySubMethod) { toast.error('يرجى اختيار نوع الحوالة'); return; } if (!payHawalaNum.trim()) { toast.error('رقم الحوالة مطلوب'); return; } }
+    }
+    if (balance !== null && amt > balance) {
+      toast.error(`المبلغ (${amt}) أكبر من الرصيد المستحق (${balance.toFixed(2)})`);
+      return;
     }
     setPayLoading(true);
     try {
@@ -289,27 +337,34 @@ export const FinInstallmentsPage = () => {
         if (payMethod === 'TRANSFER') finalMethod = 'WALLET';
         else if (payMethod === 'MONEY_TRANSFER') finalMethod = 'TRANSFER';
       }
-      const body: any = { amount: parseFloat(payAmount), paymentMethod: finalMethod, referenceNumber: payRef };
-      if (payDest === 'US' && payMethod === 'TRANSFER') {
-        body.paymentWallet = paySubMethod;
-        if (payWalletRef) body.referenceNumber = payWalletRef;
-      }
-      if (payDest === 'US' && payMethod === 'CHECK') { body.paymentBank = payBank; body.referenceNumber = payCheckNum; }
-      if (payDest === 'US' && payMethod === 'MONEY_TRANSFER') { body.paymentWallet = paySubMethod; body.referenceNumber = payHawalaNum; }
+      const body: any = {
+        amount: amt,
+        paymentMethod: finalMethod,
+        paymentDest: payDest,
+        referenceNumber: payRef,
+      };
+      if (payDest === 'US' && payMethod === 'TRANSFER') { body.paymentSubMethod = paySubMethod; if (payWalletRef) body.paymentWalletRef = payWalletRef; }
+      if (payDest === 'US' && payMethod === 'CHECK') { body.paymentBank = payBank; body.checkNumber = payCheckNum; }
+      if (payDest === 'US' && payMethod === 'MONEY_TRANSFER') { body.paymentSubMethod = paySubMethod; body.hawalaNumber = payHawalaNum; }
       if (payNotes) body.notes = payNotes;
-      if (payExpenses && parseFloat(payExpenses) > 0) {
-        body.expenses = parseFloat(payExpenses);
-        if (payExpCat) body.expenseCategory = payExpCat;
+
+      // Unified payment path: use /financial/pay-student (same as receipts page).
+      // EXTRA fees keep their targeted endpoint since they are not part of a subscription.
+      if (selSub?.id === 'EXTRA') {
+        await apiFetch(`/installments/${selInst.id}/pay`, { method: 'POST', body: JSON.stringify(body) });
+      } else {
+        body.studentId = student.id;
+        await apiFetch('/financial/pay-student', { method: 'POST', body: JSON.stringify(body) });
       }
-      await apiFetch(`/installments/${selInst.id}/pay`, { method: 'POST', body });
       toast.success('تم تسجيل الدفعة');
-      loadTxs(selInst.id);
       if (selSub?.id === 'EXTRA') {
         loadInsts(undefined, student.id, 'EXTRA');
       } else if (selSub) {
         loadInsts(String(selSub.id));
       }
       fetchBal(student.id);
+      loadTxs(selInst.id);
+      setPayActive(false);
     } catch (err: any) { toast.error('فشل', err.message); }
     finally { setPayLoading(false); }
   };
@@ -348,13 +403,33 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const isU = selInst && (selInst.status === 'PENDING' || selInst.status === 'OVERDUE');
+  const isU = selInst && (selInst.status === 'PENDING' || selInst.status === 'PARTIAL' || selInst.status === 'OVERDUE');
   const unpaidInsts = insts.filter(i => i.status === 'PENDING' || i.status === 'OVERDUE');
 
   const distributeSchedule = useCallback((count: number, total: number, baseData: typeof scheduleData) => {
     if (count < 1) return;
-    const perInst = Math.round((total / count) * 100) / 100;
-    const rem = Math.round((total - perInst * count) * 100) / 100;
+    // Mirror SubscriptionPage.baseAmounts: the first installment keeps its
+    // "دفعة أولى" value when it is installment #1 and still fully unpaid.
+    const firstUnpaid = unpaidInsts[0];
+    const firstIsDownPayment = !!firstUnpaid && firstUnpaid.installmentNumber === 1 && firstUnpaid.paidAmount === 0;
+    const downAmount = firstIsDownPayment ? firstUnpaid.amount : null;
+
+    let amounts: number[] = [];
+    if (downAmount !== null && downAmount < total) {
+      const remaining = total - downAmount;
+      const restCount = count - 1;
+      const perRest = restCount > 0 ? Math.round(remaining / restCount) : 0;
+      amounts = [downAmount];
+      for (let i = 1; i < count; i++) amounts.push(perRest);
+      const sumPrev = amounts.slice(0, -1).reduce((s, a) => s + a, 0);
+      amounts[count - 1] = Math.round((total - sumPrev) * 100) / 100;
+    } else {
+      const perInst = Math.round((total / count) * 100) / 100;
+      amounts = new Array(count).fill(perInst);
+      const sumPrev = amounts.slice(0, -1).reduce((s, a) => s + a, 0);
+      amounts[count - 1] = Math.round((total - sumPrev) * 100) / 100;
+    }
+
     const earliestDate = baseData.length > 0 ? baseData[0].dueDate : new Date().toISOString().split('T')[0];
     const data: { id: number | null; amount: number; dueDate: string }[] = [];
     for (let i = 0; i < count; i++) {
@@ -362,12 +437,12 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
       const nextDate = existing?.dueDate || new Date(new Date(earliestDate).getTime() + i * 30 * 86400000).toISOString().split('T')[0];
       data.push({
         id: existing?.id || null,
-        amount: i === 0 ? Math.round((perInst + rem) * 100) / 100 : perInst,
+        amount: amounts[i],
         dueDate: nextDate,
       });
     }
     return data;
-  }, []);
+  }, [unpaidInsts]);
 
   return (
     <div className="split-layout" style={{ gap: 0, alignItems: 'stretch', minHeight: 'calc(100vh - 140px)' }}>
@@ -535,7 +610,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                 <div className="form-row" style={{ gap: 10, marginBottom: 10 }}>
                   <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                     <label className="form-label" style={{ fontSize: '0.72rem' }}>المبلغ (د.أ)</label>
-                    <input type="number" className="glass-input" placeholder="0.00" value={aAmt} onChange={e => setAAmt(e.target.value)} step="0.01" min="0" style={{ direction: 'ltr', fontSize: '0.78rem', padding: '9px 12px' }} />
+                    <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={aAmt} onChange={e => setAAmt(e.target.value)} style={{ direction: 'ltr', fontSize: '0.78rem', padding: '9px 12px' }} />
                   </div>
                   <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                     <label className="form-label" style={{ fontSize: '0.72rem' }}>تاريخ الاستحقاق</label>
@@ -622,8 +697,8 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
 
                     {/* Amount */}
                     <div className="form-group" style={{ marginBottom: 10 }}>
-                      <label className="form-label">المبلغ <span style={{ color: 'var(--danger)' }}>*</span></label>
-                      <input type="number" className="glass-input" value={payAmount} onChange={e => setPayAmount(e.target.value)} step="0.01" min="0" style={{ direction: 'ltr', fontSize: '0.82rem' }} />
+                      <label className="form-label">المبلغ (د.أ) <span style={{ color: 'var(--danger)' }}>*</span></label>
+                      <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={payAmount} onChange={e => setPayAmount(e.target.value)} style={{ direction: 'ltr', fontSize: '0.82rem', fontWeight: 600 }} />
                     </div>
 
                     {/* Paid/Unpaid toggle */}
@@ -635,7 +710,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                             setPayActive(false);
                           } else {
                             setPayActive(true);
-                            setPayDest('ENTITY');
+                            setPayDest('');
                             setPayMethod('CASH');
                             setPaySubMethod('');
                             setPayRef('');
@@ -664,7 +739,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                       </div>
                     ) : (<>
                       {/* Payment destination */}
-                      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                         {[
                           { value: 'ENTITY', label: '🏫 جهة التعليم' },
                           { value: 'US', label: '🏢 لدينا' },
@@ -683,12 +758,17 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                               fontWeight: 600, fontSize: '0.82rem', transition: 'all .2s',
                               background: payDest === opt.value ? 'var(--primary)' : 'transparent',
                               color: payDest === opt.value ? '#fff' : 'var(--text)',
-                              borderColor: payDest === opt.value ? 'var(--primary)' : 'var(--glass-border)',
+                              borderColor: payDest === opt.value ? 'var(--primary)' : (!payDest ? 'var(--danger)' : 'var(--glass-border)'),
                             }}>
                             {opt.label}
                           </button>
                         ))}
                       </div>
+                      {!payDest && (
+                        <div style={{ fontSize: '0.72rem', color: 'var(--danger)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <AlertTriangle size={12} /> مطلوب — اختر جهة الدفع
+                        </div>
+                      )}
 
                       {payDest === 'ENTITY' ? (<>
                         {/* ENTITY — just reference + notes */}
@@ -793,22 +873,9 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                           placeholder="أي ملاحظات إضافية..." style={{ fontSize: '0.82rem' }} />
                       </div>
 
-                      {/* Expenses */}
-                      <div className="form-row" style={{ gap: 10, marginBottom: 8 }}>
-                        <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                          <label className="form-label">المصاريف</label>
-                          <input type="number" className="glass-input" value={payExpenses} onChange={e => setPayExpenses(e.target.value)} step="0.01" min="0" placeholder="مصاريف إضافية" style={{ direction: 'ltr', fontSize: '0.82rem' }} />
-                        </div>
-                        {payExpenses && parseFloat(payExpenses) > 0 && (
-                          <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                            <label className="form-label">تصنيف المصاريف</label>
-                            <input type="text" className="glass-input" value={payExpCat} onChange={e => setPayExpCat(e.target.value)} placeholder="مثال: رسوم تحويل" style={{ fontSize: '0.82rem' }} />
-                          </div>
-                        )}
-                      </div>
-
+                      {/* Submit */}
                       <button className="glass-btn" onClick={handlePay} disabled={payLoading} style={{ width: '100%', background: 'var(--success)', color: '#fff', borderColor: 'var(--success)' }}>
-                        {payLoading ? 'جارٍ...' : `تسديد ${parseFloat(payAmount || '0').toFixed(2)} د.أ`}
+                        {payLoading ? 'جارٍ...' : `تسديد ${toNumber(payAmount).toFixed(2)} د.أ`}
                       </button>
                     </>)}
                   </div>
@@ -823,7 +890,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                   <div className="form-row" style={{ gap: 10, marginBottom: 10 }}>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                       <label className="form-label">المبلغ</label>
-                      <input type="number" className="glass-input" value={eAmt} onChange={e => setEAmt(e.target.value)} step="0.01" min="0" style={{ direction: 'ltr', fontSize: '0.82rem' }} />
+                      <input type="text" inputMode="decimal" className="glass-input" value={eAmt} onChange={e => setEAmt(e.target.value)} style={{ direction: 'ltr', fontSize: '0.82rem' }} />
                     </div>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                       <label className="form-label">تاريخ الاستحقاق</label>
@@ -893,8 +960,9 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                         {subs.map(sub => {
                           const isD = !!(sub as any).diploma;
                           const active = selSub?.id === sub.id && selSub?.id !== 'EXTRA';
-                          const subInsts = insts.filter(i => String(i.subscriptionId) === String(sub.id));
-                          const unpaidCount = subInsts.filter(i => i.status === 'PENDING' || i.status === 'OVERDUE').length;
+                          const subInsts = allInsts.filter(i => String(i.subscriptionId) === String(sub.id));
+                          const remainingAmt = subInsts.reduce((s, i) => s + i.remainingAmount, 0);
+                          const unpaidCount = subInsts.filter(i => i.remainingAmount > 0).length;
                           return (
                           <tr key={String(sub.id)} onClick={() => selectSub(sub)} style={{ cursor: 'pointer' }} className={active ? 'active' : ''}>
                             <td><span className={`badge ${isD ? 'primary' : 'success'}`} style={{ fontSize: '0.55rem' }}>{isD ? 'دبلوم' : 'دورة'}</span></td>
@@ -902,9 +970,14 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                             <td style={{ direction: 'ltr', fontFamily: 'monospace' }}>{(sub as any).totalCost || (sub as any).baseFee || 0}</td>
                             <td>{(sub as any).installmentsCount || 0}</td>
                             <td style={{ textAlign: 'center' }}>
-                              <span style={{ color: unpaidCount > 0 ? 'var(--danger)' : 'var(--success)', fontSize: '0.7rem', fontWeight: 600 }}>
-                                {unpaidCount > 0 ? unpaidCount : '✓'}
-                              </span>
+                              {remainingAmt > 0 ? (
+                                <span style={{ color: 'var(--danger)', fontSize: '0.68rem', fontWeight: 600, direction: 'ltr', fontFamily: 'monospace' }}>
+                                  {remainingAmt.toFixed(2)}
+                                  {unpaidCount > 1 && <span style={{ color: 'var(--text-muted)', marginRight: 3, fontSize: '0.6rem' }}>({unpaidCount})</span>}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--success)', fontSize: '0.7rem', fontWeight: 600 }}>✓</span>
+                              )}
                             </td>
                             <td style={{ fontSize: '0.68rem' }}>{formatDate(sub.date)}</td>
                           </tr>
@@ -946,7 +1019,7 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                   color: selSub?.id === 'EXTRA' ? '#fff' : 'var(--text-muted)',
                   fontSize: '0.65rem', fontWeight: 600,
                 }}>
-                  {selSub?.id === 'EXTRA' ? insts.length : (insts.filter(i => i.subscriptionType === 'EXTRA').length || 0)}
+                  {selSub?.id === 'EXTRA' ? insts.length : (allInsts.filter(i => i.subscriptionType === 'EXTRA').length || 0)}
                 </div>
               </div>
             </div>
@@ -961,15 +1034,8 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                   {unpaidInsts.length > 1 && selSub.id !== 'EXTRA' && (
                     <button onClick={() => {
                       const cnt = unpaidInsts.length;
-                      const total = unpaidInsts.reduce((s, i) => s + i.amount, 0);
-                      const perInst = Math.round((total / cnt) * 100) / 100;
-                      const rem = Math.round((total - perInst * cnt) * 100) / 100;
-                      const data = unpaidInsts.map((i, idx) => ({
-                        id: i.id,
-                        amount: idx === 0 ? Math.round((perInst + rem) * 100) / 100 : perInst,
-                        dueDate: i.dueDate.split('T')[0],
-                      }));
-                      setScheduleData(data);
+                      const total = unpaidInsts.reduce((s, i) => s + i.remainingAmount, 0);
+                      setScheduleData(distributeSchedule(cnt, total, unpaidInsts.map(i => ({ id: i.id, amount: i.amount, dueDate: i.dueDate.split('T')[0] }))) ?? []);
                       setScheduleCount(cnt);
                       setScheduleTotal(total);
                       setShowSchedule(true);
@@ -1174,13 +1240,13 @@ ${tx.notes ? `<div class="row"><span>ملاحظات</span><span>${tx.notes}</spa
                     <div style={{ display: 'flex', gap: 10 }}>
                       <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                         <label className="form-label">المبلغ (د.أ)</label>
-                        <input type="number" className="glass-input" value={s.amount}
+                        <input type="text" inputMode="decimal" className="glass-input" value={s.amount}
                           onChange={e => {
                             const newData = [...scheduleData];
-                            newData[idx] = { ...newData[idx], amount: parseFloat(e.target.value) || 0 };
+                            newData[idx] = { ...newData[idx], amount: toNumber(e.target.value) };
                             setScheduleData(newData);
                           }}
-                          step="0.01" min="0" style={{ direction: 'ltr', fontSize: '0.82rem', fontWeight: 600 }} />
+                          style={{ direction: 'ltr', fontSize: '0.82rem', fontWeight: 600 }} />
                       </div>
                       <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                         <label className="form-label">تاريخ الاستحقاق</label>

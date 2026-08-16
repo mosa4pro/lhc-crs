@@ -180,7 +180,7 @@ router.post('/', authMiddleware, requirePermission('finance.installments'), asyn
 // ==================== PAY INSTALLMENT ====================
 router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'), async (req, res) => {
   try {
-    const { amount, paymentMethod, notes, expenses, expenseCategory, referenceNumber, paymentWallet, paymentBank, senderInfo } = req.body;
+    const { amount, paymentMethod, notes, expenses, expenseCategory, referenceNumber, paymentWallet, paymentBank, senderInfo, paymentDest, paymentSubMethod, paymentWalletRef, checkNumber, hawalaNumber } = req.body;
     const id = parseInt(req.params.id as string);
     const installment = await prisma.installment.findUnique({ where: { id } });
     if (!installment) return res.status(404).json({ error: 'القسط غير موجود' });
@@ -214,6 +214,11 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
         paymentWallet: paymentWallet || installment.paymentWallet,
         paymentBank: paymentBank || installment.paymentBank,
         senderInfo: senderInfo || installment.senderInfo,
+        paymentDest: paymentDest || installment.paymentDest,
+        paymentSubMethod: paymentSubMethod || installment.paymentSubMethod,
+        paymentWalletRef: paymentWalletRef || installment.paymentWalletRef,
+        checkNumber: checkNumber || installment.checkNumber,
+        hawalaNumber: hawalaNumber || installment.hawalaNumber,
         notes: notes || installment.notes
       }
     });
@@ -239,6 +244,11 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
         paymentWallet: paymentMethod === 'WALLET' ? (paymentWallet || null) : null,
         paymentBank: paymentMethod === 'CLICK' ? (paymentBank || null) : null,
         senderInfo: paymentMethod === 'CLICK' ? (senderInfo || null) : null,
+        paymentDest: paymentDest || null,
+        paymentSubMethod: paymentSubMethod || null,
+        paymentWalletRef: paymentWalletRef || null,
+        checkNumber: checkNumber || null,
+        hawalaNumber: hawalaNumber || null,
       }
     });
 
@@ -280,10 +290,17 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
 router.put('/:id', authMiddleware, requirePermission('finance.installments'), async (req, res) => {
   try {
     const { dueDate, notes, amount, paymentMethod, referenceNumber, paymentWallet, paymentBank, senderInfo, status, paidAmount, remainingAmount, paymentDate } = req.body;
+    const id = parseInt(req.params.id as string);
+    const existingInst = await prisma.installment.findUnique({ where: { id } });
+    if (!existingInst) return res.status(404).json({ error: 'القسط غير موجود' });
     const data: any = {};
     if (dueDate) data.dueDate = new Date(dueDate);
     if (notes !== undefined) data.notes = notes;
-    if (amount) { data.amount = parseFloat(amount); data.remainingAmount = parseFloat(amount) - (data.paidAmount || 0); }
+    if (amount) {
+      const newAmt = parseFloat(amount);
+      data.amount = newAmt;
+      data.remainingAmount = Math.max(0, newAmt - (existingInst.paidAmount || 0));
+    }
     if (paymentMethod) data.paymentMethod = paymentMethod;
     if (referenceNumber !== undefined) data.referenceNumber = referenceNumber;
     if (paymentWallet !== undefined) data.paymentWallet = paymentWallet;
@@ -356,6 +373,23 @@ router.delete('/:id', authMiddleware, requirePermission('finance.installments'),
     const installment = await prisma.installment.findUnique({ where: { id } });
     if (!installment) return res.status(404).json({ error: 'القسط غير موجود' });
     if (installment.status === 'PAID') return res.status(400).json({ error: 'لا يمكن حذف قسط مدفوع' });
+
+    // Guard: deleting a subscription installment must not reduce the total below the subscription price
+    // (skipped when merge=true — the reschedule redistributes the removed amounts onto other installments first)
+    if (!(req.query.merge === 'true') && installment.subscriptionType && installment.subscriptionType !== 'EXTRA') {
+      const subId = parseInt(installment.subscriptionId);
+      const [sub, subInsts] = await Promise.all([
+        installment.subscriptionType === 'DIPLOMA'
+          ? prisma.diplomaSubscription.findUnique({ where: { id: subId } })
+          : prisma.courseSubscription.findUnique({ where: { id: subId } }),
+        prisma.installment.findMany({ where: { subscriptionId: installment.subscriptionId } }),
+      ]);
+      const cap = (sub as any)?.totalCost || 0;
+      const newTotal = subInsts.reduce((s, i) => s + i.amount, 0) - installment.amount;
+      if (cap > 0 && newTotal < cap - 0.001) {
+        return res.status(400).json({ error: `لا يمكن حذف القسط: إجمالي الأقساط سيصبح (${newTotal.toFixed(2)}) أقل من قيمة الاشتراك (${cap.toFixed(2)})` });
+      }
+    }
 
     // Delete related financial transactions
     await prisma.financialTransaction.deleteMany({ where: { installmentId: id } });
