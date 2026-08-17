@@ -24,7 +24,33 @@ router.get('/', authMiddleware, requirePermission('finance.view'), async (req, r
       include: { student: { select: { id: true, fullNameAr: true, fullNameEn: true } } },
       orderBy: { createdAt: 'desc' }
     });
-    return res.json(transactions);
+
+    // Enrich with linked subscription's educational entity name
+    const dIds: number[] = [];
+    const cIds: number[] = [];
+    for (const t of transactions) {
+      if (!t.subscriptionId) continue;
+      const sid = Number(t.subscriptionId);
+      if (!Number.isInteger(sid)) continue;
+      if (t.subscriptionType === 'DIPLOMA') dIds.push(sid);
+      else if (t.subscriptionType === 'COURSE') cIds.push(sid);
+    }
+    const [dSubs, cSubs] = await Promise.all([
+      dIds.length
+        ? prisma.diplomaSubscription.findMany({ where: { id: { in: dIds } }, select: { id: true, entity: { select: { name: true } } } })
+        : Promise.resolve([]),
+      cIds.length
+        ? prisma.courseSubscription.findMany({ where: { id: { in: cIds } }, select: { id: true, entity: { select: { name: true } } } })
+        : Promise.resolve([]),
+    ]);
+    const entityMap = new Map<string, string>();
+    for (const s of dSubs) entityMap.set(String(s.id), s.entity?.name || '');
+    for (const s of cSubs) entityMap.set(String(s.id), s.entity?.name || '');
+    const enriched = transactions.map(t => ({
+      ...t,
+      entityName: t.subscriptionId ? (entityMap.get(String(t.subscriptionId)) || null) : null,
+    }));
+    return res.json(enriched);
   } catch (err) {
     return res.status(500).json({ error: 'خطأ في جلب المعاملات' });
   }
@@ -402,6 +428,7 @@ router.post('/receipt', authMiddleware, requirePermission('finance.receipts'), a
   try {
     const { studentId, subscriptionId, subscriptionType, amount, paymentMethod, notes, entityId, sectionId, paymentWallet, paymentBank, senderInfo, referenceNumber, paymentDest, paymentSubMethod, paymentWalletRef, checkNumber, hawalaNumber } = req.body;
     if (!amount) return res.status(400).json({ error: 'المبلغ مطلوب' });
+    if (!paymentDest) return res.status(400).json({ error: 'يرجى تحديد جهة الدفع (جهة التعليم أو لدينا)' });
 
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ error: 'مبلغ غير صالح' });
@@ -590,6 +617,7 @@ router.post('/pay-student', authMiddleware, requirePermission('finance.receipts'
     const { amount, paymentMethod, paymentWallet, paymentBank, senderInfo, referenceNumber, notes, paymentDest, paymentSubMethod, paymentWalletRef, checkNumber, hawalaNumber } = req.body;
     const studentId = req.body.studentId as string;
     if (!studentId || !amount) return res.status(400).json({ error: 'الطالب والمبلغ مطلوبان' });
+    if (!paymentDest) return res.status(400).json({ error: 'يرجى تحديد جهة الدفع (جهة التعليم أو لدينا)' });
 
     const payAmount = parseFloat(amount);
     if (isNaN(payAmount) || payAmount <= 0) return res.status(400).json({ error: 'مبلغ غير صالح' });

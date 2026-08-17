@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search, RefreshCw, FileText, Plus, X, DollarSign, Printer,
-  Clock, AlertTriangle, CreditCard, Calendar, User, Filter, Banknote, Building2, Briefcase, GraduationCap
+  Clock, AlertTriangle, CreditCard, Calendar, User, Filter, Banknote, Building2, Briefcase, GraduationCap, CheckCircle2
 } from 'lucide-react';
 import { formatDate } from '../utils/dateFormat';
 import { useApi, useAuth } from '../context/AuthContext';
@@ -31,6 +31,8 @@ interface FinTx {
   lecturerCost: number;
   expenseCategory: string | null;
   notes: string | null;
+  paymentDest?: string | null;
+  entityName?: string | null;
   student?: { id: string; fullNameAr: string; fullNameEn?: string } | null;
   createdAt: string;
 }
@@ -111,6 +113,14 @@ export const FinReceiptsPage = () => {
   const { apiFetch } = useApi();
   const { hasPermission, centerName, centerNameEn, centerLogo } = useAuth();
   const toast = useToast();
+
+  // جهة الدفع مع الاسم: "لدينا — <center>" / "جهة التعليم — <entity>"
+  const destOf = (tx: any) => {
+    if (!tx?.paymentDest) return null;
+    return tx.paymentDest === 'ENTITY'
+      ? (tx.entityName ? `جهة التعليم — ${tx.entityName}` : 'جهة التعليم')
+      : `لدينا — ${centerName || 'المركز'}`;
+  };
 
   const [summary, setSummary] = useState<FinSummary | null>(null);
   const [transactions, setTransactions] = useState<FinTx[]>([]);
@@ -398,6 +408,7 @@ ${printHeaderHTML({ name: centerName, nameEn: centerNameEn, logo: centerLogo })}
 ${tx.student ? `<div class="r"><span class="l">الطالب</span><span class="v">${tx.student.fullNameAr} (${tx.student.id})</span></div>` : ''}
 <div class="r"><span class="l">المبلغ</span><span class="v">${tx.amount.toFixed(2)} د.أ</span></div>
 <div class="r"><span class="l">طريقة الدفع</span><span class="v">${PML[tx.paymentMethod] || tx.paymentMethod}</span></div>
+${tx.paymentDest ? `<div class="r"><span class="l">جهة الدفع</span><span class="v">${destOf(tx)}</span></div>` : ''}
 ${tx.referenceNumber ? `<div class="r"><span class="l">رقم المرجع</span><span class="v">${tx.referenceNumber}</span></div>` : ''}
 ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v">${tx.notes}</span></div>` : ''}
 <div class="tt">المبلغ: ${tx.amount.toFixed(2)} دينار أردني</div>
@@ -610,7 +621,9 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                     ) : <span style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>{tx.notes?.startsWith('مدفوع من') ? tx.notes.split('—')[0].trim() : '—'}</span>}
                   </td>
                   <td style={{ direction: 'ltr', fontFamily: 'monospace', fontWeight: 700, padding: '9px 12px', fontSize: '0.76rem', color: tx.type === 'RECEIPT' ? 'var(--success)' : 'var(--danger)' }}>{tx.type === 'RECEIPT' ? '+' : '-'}{tx.amount.toFixed(2)}</td>
-                  <td style={{ fontSize: '0.68rem', padding: '9px 12px' }}><span style={{ display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>{mI[tx.paymentMethod] && <span>{mI[tx.paymentMethod]}</span>}{PML[tx.paymentMethod] || tx.paymentMethod}</span></td>
+                  <td style={{ fontSize: '0.68rem', padding: '9px 12px' }}><span style={{ display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>{mI[tx.paymentMethod] && <span>{mI[tx.paymentMethod]}</span>}{PML[tx.paymentMethod] || tx.paymentMethod}</span>
+                    {tx.paymentDest && <div style={{ fontSize: '0.6rem', color: tx.paymentDest === 'ENTITY' ? 'var(--primary)' : 'var(--success)', marginTop: 2, whiteSpace: 'nowrap' }}>{destOf(tx)}</div>}
+                  </td>
                   <td style={{ fontSize: '0.68rem', padding: '9px 12px', color: tx.referenceNumber ? undefined : 'var(--text-muted)' }}>{tx.referenceNumber || '—'}</td>
                   <td style={{ padding: '9px 12px' }}><span className={`badge ${tx.status === 'COMPLETED' ? 'success' : 'secondary'}`} style={{ fontSize: '0.56rem', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>{tx.status === 'COMPLETED' ? 'مكتمل' : 'ملغي'}</span></td>
                 </tr>
@@ -648,6 +661,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                   )}
                   <div><div style={{ color: 'var(--text-muted)', fontSize: '0.64rem', marginBottom: 2, fontWeight: 500 }}>المبلغ</div><div style={{ fontWeight: 700, fontSize: '1.1rem', color: selectedTx.type === 'RECEIPT' ? 'var(--success)' : 'var(--danger)' }}>{selectedTx.amount.toFixed(2)} د.أ</div></div>
                   <div><div style={{ color: 'var(--text-muted)', fontSize: '0.64rem', marginBottom: 2, fontWeight: 500 }}>طريقة الدفع</div><div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>{mI[selectedTx.paymentMethod] && <span>{mI[selectedTx.paymentMethod]}</span>}{PML[selectedTx.paymentMethod] || selectedTx.paymentMethod}</div></div>
+                  {selectedTx.paymentDest && <div><div style={{ color: 'var(--text-muted)', fontSize: '0.64rem', marginBottom: 2, fontWeight: 500 }}>جهة الدفع</div><div style={{ fontWeight: 600, fontSize: '0.78rem', color: selectedTx.paymentDest === 'ENTITY' ? 'var(--primary)' : 'var(--success)' }}>{destOf(selectedTx)}</div></div>}
                   {selectedTx.referenceNumber && <div><div style={{ color: 'var(--text-muted)', fontSize: '0.64rem', marginBottom: 2, fontWeight: 500 }}>رقم المرجع</div><div style={{ fontWeight: 500, fontFamily: 'monospace', direction: 'ltr', textAlign: 'right' }}>{selectedTx.referenceNumber}</div></div>}
                   {selectedTx.expenseCategory && <div><div style={{ color: 'var(--text-muted)', fontSize: '0.64rem', marginBottom: 2, fontWeight: 500 }}>التصنيف</div><div style={{ fontWeight: 500 }}>{EXPENSE_CATEGORIES.find(c => c.value === selectedTx.expenseCategory)?.label || selectedTx.expenseCategory}</div></div>}
                 </div>
@@ -812,6 +826,10 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                         {opt === 'ENTITY' ? '🏫 جهة' : '🏢 لدينا'}
                       </button>
                     ))}
+                  </div>
+                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <CheckCircle2 size={10} color="var(--success)" />
+                    سيُسجَّل: <strong style={{ color: 'var(--text-primary)' }}>{rDest === 'ENTITY' ? 'جهة التعليم' : `لدينا — ${centerName || 'المركز'}`}</strong>
                   </div>
                 </div>
               </div>

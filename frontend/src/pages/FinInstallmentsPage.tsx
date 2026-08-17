@@ -41,6 +41,14 @@ const catLabel = (inst: Inst) => {
 };
 const fmt = (n: number | undefined | null) => (n || 0).toFixed(2);
 
+// جهة الدفع with actual names: "لدينا — <center>" / "جهة التعليم — <entity>"
+const destText = (d: any, centerName?: string) => {
+  if (!d?.paymentDest) return null;
+  return d.paymentDest === 'ENTITY'
+    ? (d.entityName ? `جهة التعليم — ${d.entityName}` : 'جهة التعليم')
+    : `لدينا — ${centerName || 'المركز'}`;
+};
+
 const sx = { position: 'fixed' as const, inset: 0, zIndex: 2147483647, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)', display: 'flex' as const, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 20 };
 const mbox: React.CSSProperties = { background: 'var(--modal-bg)', backdropFilter: 'blur(32px) saturate(180%)', WebkitBackdropFilter: 'blur(32px) saturate(180%)', borderRadius: 22, border: '1px solid var(--glass-border)', boxShadow: '0 32px 80px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.05)', direction: 'rtl' };
 const gl: React.CSSProperties = { display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 };
@@ -601,7 +609,7 @@ export const FinInstallmentsPage = () => {
   };
 
   /* ── Print voucher (receipt / expense) ── */
-  const printReceipt = (tx: any) => {
+  const printReceipt = (tx: any, entityName?: string | null) => {
     const isPayment = tx.type === 'PAYMENT';
     const w = window.open('', '_blank'); if (!w) return;
     w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${isPayment ? 'سند صرف' : 'سند قبض'} #${tx.receiptNumber}</title>
@@ -631,6 +639,7 @@ ${printHeaderHTML({ name: centerName, nameEn: centerNameEn, logo: centerLogo })}
 ${tx.student ? `<div class="r"><span class="l">الطالب</span><span class="v">${tx.student.fullNameAr} (${tx.student.id})</span></div>` : ''}
 <div class="r"><span class="l">المبلغ</span><span class="v">${tx.amount.toFixed(2)} د.أ</span></div>
 <div class="r"><span class="l">طريقة الدفع</span><span class="v">${PML[tx.paymentMethod] || tx.paymentMethod}</span></div>
+${tx.paymentDest ? `<div class="r"><span class="l">جهة الدفع</span><span class="v">${tx.paymentDest === 'ENTITY' ? 'جهة التعليم — ' + (entityName || '') : 'لدينا — ' + (centerName || 'المركز')}</span></div>` : ''}
 ${tx.referenceNumber ? `<div class="r"><span class="l">رقم المرجع</span><span class="v">${tx.referenceNumber}</span></div>` : ''}
 ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v">${tx.notes}</span></div>` : ''}
 <div class="tt">المبلغ: ${tx.amount.toFixed(2)} دينار أردني</div>
@@ -806,7 +815,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                           )}
                           {detail.paymentDest && (
                             <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                              جهة الدفع: <strong>{detail.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'}</strong>
+                              جهة الدفع: <strong style={{ color: detail.paymentDest === 'ENTITY' ? 'var(--primary)' : 'var(--success)' }}>{destText(detail, centerName)}</strong>
                             </div>
                           )}
                         </div>
@@ -931,6 +940,12 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                             {!payDest && (
                               <div style={{ fontSize: '0.66rem', color: 'var(--danger)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
                                 <AlertTriangle size={11} /> مطلوب — اختر جهة الدفع
+                              </div>
+                            )}
+                            {payDest && (
+                              <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px', borderRadius: 7, background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+                                <CheckCircle2 size={11} color="var(--success)" />
+                                سيتم تسجيل الدفعة على: <strong style={{ color: 'var(--text-primary)' }}>{payDest === 'ENTITY' ? (detail.entityName ? `جهة التعليم — ${detail.entityName}` : 'جهة التعليم') : `لدينا — ${centerName || 'المركز'}`}</strong>
                               </div>
                             )}
 
@@ -1086,7 +1101,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                                     <span style={{ fontWeight: 700, fontFamily: 'monospace', direction: 'ltr' }}>{fmt(tx.amount)} د.أ</span>
                                     <span style={{ color: 'var(--text-muted)' }}>{PML[tx.paymentMethod] || tx.paymentMethod}</span>
                                     {tx.receiptNumber && (
-                                      <button onClick={() => printReceipt(tx)} style={{ padding: '0 6px', fontSize: '0.56rem', cursor: 'pointer', border: '1px solid var(--glass-border)', borderRadius: 4, color: 'var(--primary)', background: 'none', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                      <button onClick={() => printReceipt(tx, detail?.entityName)} style={{ padding: '0 6px', fontSize: '0.56rem', cursor: 'pointer', border: '1px solid var(--glass-border)', borderRadius: 4, color: 'var(--primary)', background: 'none', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                                         <Printer size={8} /> سند #{tx.receiptNumber}
                                       </button>
                                     )}
@@ -1391,8 +1406,9 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
                                   <span className={`badge ${st.cls}`} style={{ fontSize: '0.58rem' }}>{st.label}</span>
                                   {inst.paymentDest && (
-                                    <span className={`badge ${inst.paymentDest === 'ENTITY' ? 'primary' : 'teal'}`} style={{ fontSize: '0.48rem' }}>
-                                      {inst.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'}
+                                    <span className={`badge ${inst.paymentDest === 'ENTITY' ? 'primary' : 'teal'}`} style={{ fontSize: '0.48rem', whiteSpace: 'normal', lineHeight: 1.5, textAlign: 'right' }}
+                                      title={destText(inst, centerName) || ''}>
+                                      {destText(inst, centerName)}
                                     </span>
                                   )}
                                 </div>

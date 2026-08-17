@@ -344,6 +344,7 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
     const installment = await prisma.installment.findUnique({ where: { id } });
     if (!installment) return res.status(404).json({ error: 'القسط غير موجود' });
     if (installment.status === 'PAID') return res.status(400).json({ error: 'هذا القسط مدفوع بالفعل' });
+    if (!paymentDest) return res.status(400).json({ error: 'يرجى تحديد جهة الدفع (جهة التعليم أو لدينا)' });
 
     const payAmount = parseFloat(amount);
     if (isNaN(payAmount) || payAmount <= 0) return res.status(400).json({ error: 'مبلغ غير صالح' });
