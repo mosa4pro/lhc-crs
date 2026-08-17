@@ -567,7 +567,7 @@ router.get('/students/:studentId/installment-balance', authMiddleware, requirePe
       prisma.installment.findMany({ where: { studentId } }),
     ]);
     let balance = installments
-      .filter(i => i.subscriptionType === 'EXTRA')
+      .filter(i => i.subscriptionType === 'EXTRA' && i.status !== 'REFUNDED')
       .reduce((s, i) => s + remOf(i), 0);
     for (const sub of [...diplomaSubs, ...courseSubs]) {
       const paid = installments
@@ -576,7 +576,7 @@ router.get('/students/:studentId/installment-balance', authMiddleware, requirePe
       balance += Math.max(0, (sub.totalCost || 0) - paid);
     }
     const unpaidInsts = installments
-      .filter(i => i.status !== 'PAID' && remOf(i) > 0)
+      .filter(i => i.status !== 'PAID' && i.status !== 'REFUNDED' && remOf(i) > 0)
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
     return res.json({ balance, installments: unpaidInsts, totalInstallments: unpaidInsts.length });
   } catch (err: any) {

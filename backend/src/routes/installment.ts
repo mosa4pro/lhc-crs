@@ -525,6 +525,75 @@ router.post('/:id/void-payment', authMiddleware, requirePermission('finance.inst
   }
 });
 
+// ==================== REFUND INSTALLMENT (استرجاع بسند صرف) ====================
+router.post('/:id/refund', authMiddleware, requirePermission('finance.payments'), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id as string);
+    const installment = await prisma.installment.findUnique({ where: { id } });
+    if (!installment) return res.status(404).json({ error: 'القسط غير موجود' });
+    if (installment.status === 'REFUNDED') return res.status(400).json({ error: 'هذا القسط مسترجع بالفعل' });
+    if ((installment.paidAmount || 0) <= 0) return res.status(400).json({ error: 'لا يوجد مبلغ مدفوع لاسترجاعه' });
+
+    const refundAmount = installment.paidAmount;
+    const receiptNumber = await generateReceiptNumber('PAYMENT');
+    const actingUser = (req as any).user;
+
+    // Create a سند صرف (expenditure voucher) for the refunded amount
+    await prisma.financialTransaction.create({
+      data: {
+        studentId: installment.studentId,
+        subscriptionId: installment.subscriptionId,
+        subscriptionType: installment.subscriptionType,
+        installmentId: id,
+        type: 'PAYMENT',
+        amount: refundAmount,
+        paymentMethod: installment.paymentMethod || 'CASH',
+        status: 'COMPLETED',
+        receiptNumber,
+        referenceNumber: installment.referenceNumber || null,
+        paymentDest: installment.paymentDest || null,
+        notes: `استرجاع قسط ${installment.installmentNumber}/${installment.totalInstallments} — سند صرف ${receiptNumber}`
+      }
+    });
+
+    // Void the original receipt transaction(s)
+    await prisma.financialTransaction.updateMany({
+      where: { installmentId: id, type: 'RECEIPT', status: 'COMPLETED' },
+      data: { status: 'VOIDED', notes: `ملغاة بسبب استرجاع القسط #${installment.installmentNumber} — سند صرف ${receiptNumber}` }
+    });
+
+    const updated = await prisma.installment.update({
+      where: { id },
+      data: {
+        status: 'REFUNDED',
+        paidAmount: 0,
+        remainingAmount: installment.amount,
+        paymentDate: null,
+        paymentMethod: null,
+        referenceNumber: null,
+        paymentWallet: null,
+        paymentBank: null,
+        senderInfo: null,
+        notes: installment.notes ? `${installment.notes}\nمسترجع بسند صرف ${receiptNumber}` : `مسترجع بسند صرف ${receiptNumber}`
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: actingUser.id,
+        action: 'REFUND',
+        entity: 'Installment',
+        details: JSON.stringify({ installmentId: id, oldStatus: installment.status, refundAmount, receiptNumber })
+      }
+    });
+
+    return res.json(updated);
+  } catch (err: any) {
+    console.error(err);
+    return res.status(400).json({ error: err.message || 'فشل استرجاع القسط' });
+  }
+});
+
 // ==================== DELETE INSTALLMENT ====================
 router.delete('/:id', authMiddleware, requirePermission('finance.installments'), async (req, res) => {
   try {

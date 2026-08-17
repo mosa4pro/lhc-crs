@@ -716,7 +716,7 @@ model Installment {
   amount            Float
   paidAmount        Float     @default(0)
   remainingAmount   Float     @default(0)
-  status            String    @default("PENDING") // PENDING|PAID|PARTIAL|OVERDUE
+  status            String    @default("PENDING") // PENDING|PAID|PARTIAL|OVERDUE|REFUNDED
   paymentDate       DateTime?
   paymentMethod     String?   // CASH|BANK|CARD|TRANSFER|ENTITY|WALLET|CLICK
   referenceNumber   String?
