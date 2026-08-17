@@ -36,6 +36,30 @@ const formatDays = (days: any) => {
   } catch { return String(days); }
 };
 
+const parseScheduleDetails = (sec: any): { day: string; startTime: string; endTime: string }[] => {
+  if (!sec?.scheduleDetails) return [];
+  try {
+    const d = typeof sec.scheduleDetails === 'string' ? JSON.parse(sec.scheduleDetails) : sec.scheduleDetails;
+    return Array.isArray(d) ? d : [];
+  } catch { return []; }
+};
+
+const scheduleDays = (sec: any) => {
+  if (sec?.perDaySchedule) {
+    const dets = parseScheduleDetails(sec);
+    if (dets.length) return dets.map(s => DAY_ABBR[s.day?.trim().toUpperCase()] || s.day).join('، ');
+  }
+  return formatDays(sec?.days);
+};
+
+const scheduleTime = (sec: any) => {
+  if (sec?.perDaySchedule) {
+    const dets = parseScheduleDetails(sec);
+    if (dets.length) return dets.map(s => `${s.startTime}-${s.endTime}`).join(' | ');
+  }
+  return sec?.startTime && sec?.endTime ? `${sec.startTime} - ${sec.endTime}` : '—';
+};
+
 export const StudentProfilePage = () => {
   const { apiFetch } = useApi();
   const { centerName, centerNameEn, centerLogo } = useAuth();
@@ -204,7 +228,7 @@ export const StudentProfilePage = () => {
         return td ? fmtDate(td) : isCur ? 'الآن' : '—';
       };
       html += `<div class="section"><h4>الجدول الدراسي</h4><table><thead><tr><th>المادة</th><th>رقم الشعبة</th><th>الأيام</th><th>الوقت</th><th>القاعة</th><th>المدرب</th></tr></thead><tbody>`;
-      secs.forEach((item: any) => { const sec = secToDisplay(item); const room = sec.room?.name || '—'; const ltParts: string[] = []; const lt = sec.room?.learningType; const loc = learningTypeLabel(lt); const en = sec.room?.entity?.name; if (lt === 'EXTERNAL_ENTITY') ltParts.push(en || 'جهة تعلم خارجية'); else ltParts.push(loc); const mod = sec.room?.modality; if (mod && mod !== 'PHYSICAL') ltParts.push(modalityLabel(mod)); html += `<tr><td>${sec.course?.name || sec.diploma?.name || '—'}</td><td>${sec.name || '—'}</td><td>${formatDays(sec.days)}</td><td>${sec.startTime && sec.endTime ? sec.startTime + ' - ' + sec.endTime : '—'}</td><td>${room}${ltParts.length ? ' (' + ltParts.join('، ') + ')' : ''}</td><td>${sec.instructor?.name || '—'}</td></tr>`; });
+      secs.forEach((item: any) => { const sec = secToDisplay(item); const room = sec.room?.name || '—'; const ltParts: string[] = []; const lt = sec.room?.learningType; const loc = learningTypeLabel(lt); const en = sec.room?.entity?.name; if (lt === 'EXTERNAL_ENTITY') ltParts.push(en || 'جهة تعلم خارجية'); else ltParts.push(loc); const mod = sec.room?.modality; if (mod && mod !== 'PHYSICAL') ltParts.push(modalityLabel(mod)); html += `<tr><td>${sec.course?.name || sec.diploma?.name || '—'}</td><td>${sec.name || '—'}</td><td>${scheduleDays(sec)}</td><td>${scheduleTime(sec)}</td><td>${room}${ltParts.length ? ' (' + ltParts.join('، ') + ')' : ''}</td><td>${sec.instructor?.name || '—'}</td></tr>`; });
       html += `</tbody></table></div>`; }
     }
     const printSubs = [
@@ -228,7 +252,7 @@ export const StudentProfilePage = () => {
       const pStats = (secId: string) => { const rows = pGrouped[secId] || []; const total = rows.length; const present = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'PRESENT').length; const absent = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'ABSENT').length; const late = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'LATE').length; const excused = rows.filter((r: any) => String(r.status || '').toUpperCase() === 'EXCUSED').length; return { total, present, absent, late, excused, pct: total ? Math.round((present / total) * 100) : 0 }; };
       const pFmtDate = (d: any) => d ? formatDate(d) : '—';
       html += `<div class="section"><h4>الحضور والغياب</h4><table><thead><tr><th>المادة</th><th>رقم الشعبة</th><th>الأيام</th><th>الوقت</th><th>من تاريخ</th><th>إلى تاريخ</th><th>عدد أيام الدوام</th><th>الحضور</th><th>الغياب</th><th>نسبة الحضور</th></tr></thead><tbody>`;
-      secs.forEach((item: any) => { const sec = secToDisplay(item); const st = pStats(String(sec.id)); const enroll = item.enrollDate ? pFmtDate(item.enrollDate) : '—'; const isCur = item.status === 'ENROLLED' || item.status === 'ACTIVE'; const td = getTransferDate(sec.id, isCur); const end = td ? pFmtDate(td) : (isCur ? 'الآن' : '—'); html += `<tr><td>${sec.course?.name || sec.diploma?.name || '—'}</td><td>${sec.name || '—'}</td><td>${formatDays(sec.days)}</td><td>${sec.startTime && sec.endTime ? sec.startTime + ' - ' + sec.endTime : '—'}</td><td>${enroll}</td><td>${end}</td><td>${st.total}</td><td>${st.present}</td><td>${st.absent + st.late}</td><td>${st.total ? st.pct + '%' : '—'}</td></tr>`; });
+      secs.forEach((item: any) => { const sec = secToDisplay(item); const st = pStats(String(sec.id)); const enroll = item.enrollDate ? pFmtDate(item.enrollDate) : '—'; const isCur = item.status === 'ENROLLED' || item.status === 'ACTIVE'; const td = getTransferDate(sec.id, isCur); const end = td ? pFmtDate(td) : (isCur ? 'الآن' : '—'); html += `<tr><td>${sec.course?.name || sec.diploma?.name || '—'}</td><td>${sec.name || '—'}</td><td>${scheduleDays(sec)}</td><td>${scheduleTime(sec)}</td><td>${enroll}</td><td>${end}</td><td>${st.total}</td><td>${st.present}</td><td>${st.absent + st.late}</td><td>${st.total ? st.pct + '%' : '—'}</td></tr>`; });
       html += `</tbody></table></div>`; }
     }
     if (printSections.notes && s.notes) { html += `<div class="section"><h4>ملاحظات</h4><p>${s.notes}</p></div>`; }
@@ -460,8 +484,8 @@ export const StudentProfilePage = () => {
                       <tr key={sec.id}>
                         <td style={tdStyle}>{sec.course?.name || sec.diploma?.name || '—'}</td>
                         <td style={tdStyle}>{sec.name || '—'}</td>
-                        <td style={tdStyle}>{formatDays(sec.days)}</td>
-                        <td style={tdStyle}>{sec.startTime && sec.endTime ? `${sec.startTime} - ${sec.endTime}` : '—'}</td>
+                        <td style={tdStyle}>{scheduleDays(sec)}</td>
+                        <td style={tdStyle}>{scheduleTime(sec)}</td>
                       <td style={tdStyle}>
                         <div>{sec.room?.name || '—'}</div>
                         <LearningTypeBadge room={sec.room} style={{ marginTop: 2 }} />

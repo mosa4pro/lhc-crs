@@ -475,7 +475,8 @@ export const FinInstallmentsPage = () => {
     const amt = toNumber(payAmount);
     if (!amt || amt <= 0) { toast.error('المبلغ مطلوب'); return; }
     if (!payDest) { toast.error('اختر جهة الدفع (جهة التعليم أو لدينا)'); return; }
-    if (!payRef.trim()) { toast.error('رقم المرجع مطلوب'); return; }
+    const refVal = payRef.trim() || payWalletRef?.trim() || payCheckNum?.trim() || payHawalaNum?.trim();
+    if (!refVal) { toast.error('رقم المرجع مطلوب'); return; }
     if (payDest === 'US') {
       if (payMethod === 'TRANSFER' && !paySubMethod) { toast.error('يرجى اختيار نوع المحفظة الإلكترونية'); return; }
       if (payMethod === 'CHECK') { if (!payBank) { toast.error('يرجى اختيار البنك'); return; } if (!payCheckNum.trim()) { toast.error('رقم الشيك مطلوب'); return; } }
@@ -499,7 +500,7 @@ export const FinInstallmentsPage = () => {
         amount: amt,
         paymentMethod: finalMethod,
         paymentDest: payDest,
-        referenceNumber: payRef,
+        referenceNumber: refVal,
       };
       if (payMethod === 'TRANSFER') { body.paymentSubMethod = paySubMethod; if (payWalletRef) body.paymentWalletRef = payWalletRef; }
       if (payMethod === 'CHECK') { body.paymentBank = payBank; body.checkNumber = payCheckNum; }
