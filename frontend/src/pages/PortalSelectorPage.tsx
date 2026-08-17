@@ -15,7 +15,7 @@ export const PortalSelectorPage = () => {
       icon: <Briefcase size={32}/>,
       title: 'بوابة الإدارة',
       description: 'لوحة التحكم الكاملة — للمسؤولين والمشرفين',
-      gradient: 'linear-gradient(135deg, #722F37, #C9A93E)',
+      gradient: 'linear-gradient(135deg, #9F2D3F, #7A2030)',
       path: '/',
       portalKey: 'ADMIN',
     },
@@ -24,7 +24,7 @@ export const PortalSelectorPage = () => {
       icon: <Briefcase size={32}/>,
       title: 'بوابة الموظفين',
       description: 'الخدمات الإدارية — للطلاب والتسجيلات والخدمات اليومية',
-      gradient: 'linear-gradient(135deg, #6B2430, #D4AF37)',
+      gradient: 'linear-gradient(135deg, #0d9488, #0f766e)',
       path: '/employee-portal',
       portalKey: 'EMPLOYEE',
     },
@@ -33,7 +33,7 @@ export const PortalSelectorPage = () => {
       icon: <GraduationCap size={32}/>,
       title: 'بوابة الطالب',
       description: 'الجدول الدراسي، سجل الحضور، الدفعات، المعلومات الشخصية',
-      gradient: 'linear-gradient(135deg, #10b981, #3b82f6)',
+      gradient: 'linear-gradient(135deg, #16a34a, #15803d)',
       path: '/student-portal',
       portalKey: 'STUDENT',
     },
@@ -42,7 +42,7 @@ export const PortalSelectorPage = () => {
       icon: <BookOpen size={32}/>,
       title: 'بوابة المحاضر',
       description: 'إدارة الشعب، تسجيل الحضور، عرض الجداول',
-      gradient: 'linear-gradient(135deg, #8b5cf6, #f59e0b)',
+      gradient: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
       path: '/instructor-portal',
       portalKey: 'INSTRUCTOR',
     },
@@ -77,8 +77,8 @@ export const PortalSelectorPage = () => {
       {/* Logo */}
       <div style={{ marginBottom: 40, textAlign: 'center' }}>
         {centerLogo
-          ? <img src={centerLogo} alt="logo" style={{ width: 72, height: 72, borderRadius: 18, objectFit: 'cover', boxShadow: '0 12px 40px rgba(59,130,246,0.25)', marginBottom: 16 }}/>
-          : <div style={{ width: 72, height: 72, borderRadius: 22, background: 'linear-gradient(135deg,var(--primary),var(--secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 12px 40px rgba(59,130,246,0.3)', margin: '0 auto 16px' }}>
+          ? <img src={centerLogo} alt="logo" style={{ width: 72, height: 72, borderRadius: 18, objectFit: 'cover', boxShadow: '0 12px 40px var(--primary-glow)', marginBottom: 16 }}/>
+          : <div style={{ width: 72, height: 72, borderRadius: 22, background: 'linear-gradient(135deg,var(--primary),var(--secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 12px 40px var(--primary-glow)', margin: '0 auto 16px' }}>
               <GraduationCap size={36}/>
             </div>
         }

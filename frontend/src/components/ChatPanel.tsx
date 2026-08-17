@@ -149,7 +149,7 @@ const Avtr = React.memo(({ name, type, size = 40, online, lastSeen, image }: { n
         ? 'none'
         : type === 'GROUP'
           ? 'linear-gradient(135deg, #667781, #8696a0)'
-          : 'linear-gradient(135deg, #25D366, #128C7E)',
+          : 'linear-gradient(135deg, var(--primary), var(--secondary))',
       color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.4, fontWeight: 600, lineHeight: 1,
     }}>

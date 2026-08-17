@@ -375,7 +375,7 @@ export const UserSettingsPage = () => {
                 <button onClick={handleSaveStatus}
                   style={{
                     height: 36, padding: '0 16px', borderRadius: 8, border: 'none',
-                    background: savingProfile ? 'var(--text-muted)' : 'linear-gradient(135deg, #25D366, #128C7E)',
+                    background: savingProfile ? 'var(--text-muted)' : 'linear-gradient(135deg, var(--primary), var(--secondary))',
                     color: '#fff', cursor: savingProfile ? 'not-allowed' : 'pointer',
                     fontWeight: 600, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
                   }}

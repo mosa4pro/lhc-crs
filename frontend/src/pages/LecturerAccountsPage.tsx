@@ -197,7 +197,7 @@ export const LecturerAccountsPage = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 200 }}>
                     <div style={{
                       width: 40, height: 40, borderRadius: 12,
-                      background: 'linear-gradient(135deg, var(--primary-color), #6366f1)',
+                      background: 'linear-gradient(135deg, var(--primary-color), var(--secondary-color))',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: '#fff', fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
                     }}>

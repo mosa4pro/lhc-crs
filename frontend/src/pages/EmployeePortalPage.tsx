@@ -85,7 +85,7 @@ export const EmployeePortalPage = () => {
       }}>
         <div style={{
           width: 72, height: 72, borderRadius: 20,
-          background: 'linear-gradient(135deg, #722F37, #C9A93E)',
+          background: 'linear-gradient(135deg, #9F2D3F, #7A2030)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#fff', margin: '0 auto 20px',
           boxShadow: '0 8px 24px rgba(114,47,55,0.25)',

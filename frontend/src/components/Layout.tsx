@@ -775,12 +775,12 @@ const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {[
-                      { i: 0, color: '#25D366', name: 'أخضر' },
-                      { i: 1, color: '#00A884', name: 'نعناعي' },
-                      { i: 2, color: '#3b82f6', name: 'أزرق' },
-                      { i: 3, color: '#8b5cf6', name: 'بنفسجي' },
-                      { i: 4, color: '#f59e0b', name: 'عنبر' },
-                      { i: 5, color: '#C4546A', name: 'نبيذي' },
+                      { i: 0, color: '#16a34a', name: 'أخضر' },
+                      { i: 1, color: '#0d9488', name: 'نعناعي' },
+                      { i: 2, color: '#2563eb', name: 'أزرق' },
+                      { i: 3, color: '#7c3aed', name: 'بنفسجي' },
+                      { i: 4, color: '#d97706', name: 'عنبر' },
+                      { i: 5, color: '#9f2d3f', name: 'نبيذي' },
                     ].map(({ i, color, name }) => (
                       <div key={i} style={{ flex: 1, textAlign: 'center' }}>
                         <div onClick={() => setAccent(i)}

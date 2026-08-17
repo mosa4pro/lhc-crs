@@ -102,7 +102,7 @@ const PortalSelector = ({ onSelect }: { onSelect: (p: Portal) => void }) => {
           border: '2px solid rgba(201,169,62,0.2)',
           background: displayLogo
             ? `url(${displayLogo}) center/cover no-repeat`
-            : 'linear-gradient(135deg, #722F37, #C9A93E)',
+            : 'linear-gradient(135deg, #9F2D3F, #7A2030)',
         }}>
           {!displayLogo && (
             <div style={{
@@ -114,7 +114,7 @@ const PortalSelector = ({ onSelect }: { onSelect: (p: Portal) => void }) => {
           )}
         </div>
         <h1 style={{
-          fontSize: '2rem', fontWeight: 800, color: '#722F37', marginTop: 16, marginBottom: 8,
+          fontSize: '2rem', fontWeight: 800, color: '#8B2635', marginTop: 16, marginBottom: 8,
           letterSpacing: '-0.5px',
         }}>{displayName}</h1>
         <p style={{ color: '#998B7A', fontSize: '0.95rem', fontWeight: 500 }}>

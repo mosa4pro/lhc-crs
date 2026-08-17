@@ -727,7 +727,7 @@ export const AdminEmployeesPage = () => {
               <div className="stat-card amber" style={{ flex: '0 0 auto', minWidth: 110, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px' }}>
                 <div className="stat-icon" style={{ marginBottom: 0, width: 36, height: 36, borderRadius: 10, flexShrink: 0 }}><Clock size={16} /></div>
                 <div>
-                  <div className="stat-value" style={{ fontSize: '1.2rem', color: 'var(--accent)' }}>{employees.filter(e => e.type !== 'FULL_TIME').length}</div>
+                  <div className="stat-value" style={{ fontSize: '1.2rem', color: 'var(--primary)' }}>{employees.filter(e => e.type !== 'FULL_TIME').length}</div>
                   <div className="stat-label" style={{ marginBottom: 0, fontSize: '0.75rem' }}>جزئي / عمولة</div>
                 </div>
               </div>
@@ -905,7 +905,7 @@ export const AdminEmployeesPage = () => {
       {cardInstructor && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => setCardInstructor(null)}>
           <div className="glass-panel" style={{ width: 400, direction: 'rtl', overflow: 'hidden', padding: 0 }} onClick={e => e.stopPropagation()}>
-            <div style={{ background: 'linear-gradient(135deg, var(--primary), #6366f1)', padding: '20px 24px 14px', textAlign: 'center', color: '#fff' }}>
+            <div style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))', padding: '20px 24px 14px', textAlign: 'center', color: '#fff' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <IdCard size={22} />
                 <button onClick={() => setCardInstructor(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#fff' }}>×</button>
