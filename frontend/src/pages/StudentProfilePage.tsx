@@ -600,8 +600,8 @@ export const StudentProfilePage = () => {
                               </span>
                             </td>
                             <td style={tdStyle}>{sec.name || '—'}</td>
-                            <td style={tdStyle}>{formatDays(sec.days)}</td>
-                            <td style={tdStyle}>{sec.startTime && sec.endTime ? `${sec.startTime} - ${sec.endTime}` : '—'}</td>
+                            <td style={tdStyle}>{scheduleDays(sec)}</td>
+                            <td style={tdStyle}>{scheduleTime(sec)}</td>
                             <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontSize: '0.75rem' }}>
                               {enrollDate ? formatDate(enrollDate) : '—'}
                             </td>

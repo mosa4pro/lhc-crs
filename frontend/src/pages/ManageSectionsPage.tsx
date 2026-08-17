@@ -32,6 +32,7 @@ interface Section {
   students?: any[];
   perDaySchedule?: boolean;
   scheduleDetails?: any;
+  _count?: { students?: number };
 }
 
 const dayLabels: Record<string, string> = {
