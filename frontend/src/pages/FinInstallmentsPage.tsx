@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Search, CreditCard, Plus, X, RefreshCw,
   Clock, FileText, Trash2, Save, Printer,
   Calendar, AlertTriangle, Award, Minus,
-  ChevronLeft, ExternalLink, Wallet, User, Banknote, GraduationCap, BookOpen, Layers, CheckCircle2
+  ChevronLeft, ExternalLink, Wallet, Banknote, GraduationCap, BookOpen, CheckCircle2
 } from 'lucide-react';
 import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
@@ -70,6 +70,7 @@ export const FinInstallmentsPage = () => {
   const [selSub, setSelSub] = useState<any>(null);
   const [subInstalls, setSubInstalls] = useState<Inst[]>([]);
   const [subInstLoading, setSubInstLoading] = useState(false);
+  const [allInstalls, setAllInstalls] = useState<Inst[]>([]);
 
   /* ── Detail drawer (lazy) ── */
   const [selId, setSelId] = useState<number | null>(null);
@@ -161,10 +162,11 @@ export const FinInstallmentsPage = () => {
     setStudentLoading(true);
     setSubsLoading(true);
     try {
-      const [stu, d, c] = await Promise.all([
+      const [stu, d, c, insts] = await Promise.all([
         apiFetch(`/students/${sid}`),
         apiFetch(`/subscriptions/diploma?studentId=${sid}`).catch(() => []),
-        apiFetch(`/subscriptions/course?studentId=${sid}`).catch(() => [])
+        apiFetch(`/subscriptions/course?studentId=${sid}`).catch(() => []),
+        apiFetch(`/installments?studentId=${sid}`).catch(() => [])
       ]);
       setStudent(stu || null);
       setFStudentName(stu?.fullNameAr || '');
@@ -173,6 +175,7 @@ export const FinInstallmentsPage = () => {
         ...(Array.isArray(c) ? c : []).map((s: any) => ({ ...s, _type: 'COURSE', _name: s.course?.name || `دورة #${s.id}`, _progId: s.courseId }))
       ];
       setSubs(merged);
+      setAllInstalls(Array.isArray(insts) ? insts : insts?.data || []);
       return merged;
     } catch (err: any) { toast.error('فشل تحميل بيانات الطالب', err.message); return []; }
     finally { setStudentLoading(false); setSubsLoading(false); }
@@ -205,12 +208,12 @@ export const FinInstallmentsPage = () => {
 
   const pickStudent = useCallback(async (s: any) => {
     setShowStuDrop(false);
-    setSelSub(null); setSubInstalls([]); setScheduleData([]);
+    setSelSub(null); setSubInstalls([]); setScheduleData([]); setAllInstalls([]);
     await loadStudentSubs(s.id);
   }, [loadStudentSubs]);
 
   const clearStudent = () => {
-    setStudent(null); setSubs([]); setSelSub(null); setSubInstalls([]);
+    setStudent(null); setSubs([]); setSelSub(null); setSubInstalls([]); setAllInstalls([]);
     setScheduleData([]); setScheduleCount(0); setScheduleTotal(0);
     setDetail(null); setDrawerOpen(false); setSelId(null); setSubInsts([]);
   };
@@ -297,6 +300,42 @@ export const FinInstallmentsPage = () => {
   const wsPaidPct = (selSub?.totalCost || 0) > 0
     ? Math.min(100, Math.round((wsTotalPaid / (selSub?.totalCost || 1)) * 100))
     : 0;
+
+  /* ── Derived (student-level aggregates across all subscriptions) ── */
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isOverdue = useCallback((i: Inst) =>
+    i.status === 'OVERDUE' || (i.status === 'PENDING' && (i.dueDate?.split('T')[0] || '') < todayStr), [todayStr]);
+  const stStats = useMemo(() => {
+    const base = { totalCount: 0, totalAmount: 0, paid: 0, remaining: 0, paidCount: 0, overdueCount: 0, overdueAmount: 0 };
+    if (!student) return base;
+    for (const i of allInstalls) {
+      const amt = i.amount || 0;
+      const paid = i.paidAmount || 0;
+      base.totalCount += 1;
+      base.totalAmount += amt;
+      base.paid += paid;
+      base.remaining += Math.max(0, amt - paid);
+      if (paid > 0) base.paidCount += 1;
+      if (isOverdue(i)) { base.overdueCount += 1; base.overdueAmount += Math.max(0, amt - paid); }
+    }
+    return base;
+  }, [student, allInstalls, isOverdue]);
+  const stPaidPct = stStats.totalAmount > 0 ? Math.min(100, Math.round((stStats.paid / stStats.totalAmount) * 100)) : 0;
+
+  /* ── Per-subscription aggregates (live status without opening the sub) ── */
+  const subAgg = useMemo(() => {
+    const m: Record<string, { count: number; total: number; paid: number; remaining: number; overdue: number }> = {};
+    for (const i of allInstalls) {
+      const k = `${i.subscriptionType}:${i.subscriptionId}`;
+      const e = m[k] || (m[k] = { count: 0, total: 0, paid: 0, remaining: 0, overdue: 0 });
+      e.count += 1;
+      e.total += i.amount || 0;
+      e.paid += i.paidAmount || 0;
+      e.remaining += remOf(i);
+      if (isOverdue(i)) e.overdue += 1;
+    }
+    return m;
+  }, [allInstalls, isOverdue]);
 
   /* ── Add installment ── */
   const openAdd = async (s: Student) => {
@@ -606,56 +645,56 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
 
   /* ═══════════════════════ RENDER ═══════════════════════ */
   return (
-    <div style={{ minHeight: 'calc(100vh - 140px)', maxWidth: 1500, margin: '0 auto', direction: 'rtl' }}>
+    <div className="fade-in" style={{ minHeight: 'calc(100vh - 140px)', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 11, background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <CreditCard size={18} />
-          </div>
-          <div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>إدارة الأقساط</div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-              {student ? `${student.fullNameAr} — ${subs.length} ${subs.length === 1 ? 'اشتراك' : 'اشتراكات'}` : 'لوحة عمل — اختر طالباً للبدء'}
-            </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: 'clamp(1rem, 3vw, 1.3rem)' }}>
+            <CreditCard size={22} color="var(--primary)" /> إدارة الأقساط
+          </h2>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
+            {student ? `${student.fullNameAr} — ${subs.length} ${subs.length === 1 ? 'اشتراك' : 'اشتراكات'}` : 'لوحة عمل — اختر طالباً للبدء'}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button className="glass-btn icon-btn" onClick={() => { if (student) { loadStudentSubs(String(student.id)); if (selSub) selectSub(selSub); } }} title="تحديث"><RefreshCw size={16} /></button>
-          <button className="glass-btn" onClick={() => setIsDeep(true)} style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button className="glass-btn secondary" onClick={() => { if (student) { loadStudentSubs(String(student.id)); if (selSub) selectSub(selSub); } }} disabled={studentLoading || subsLoading}
+            style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <RefreshCw size={15} className={studentLoading || subsLoading ? 'spin' : ''} /> تحديث
+          </button>
+          <button className="glass-btn secondary" onClick={() => setIsDeep(true)} style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Search size={15} /> بحث عميق
           </button>
         </div>
       </div>
 
       {/* ── Student search bar ── */}
-      <div ref={stuRef} style={{ position: 'relative', marginBottom: 16 }}>
-        <div className="glass-panel" style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--glass-border)' }}>
-          <User size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-          <input type="text" placeholder="ابحث عن طالب بالاسم، الرقم، أو الهاتف — ثم اختر اشتراكاً من الجهة المقابلة"
-            value={fStudentName}
-            onChange={e => {
-              const v = e.target.value;
-              clearStudent();
-              setFStudentName(v);
-              searchStudents(v);
-            }}
-            onFocus={() => { if (stuResults.length > 0) setShowStuDrop(true); }}
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '0.88rem', color: 'inherit', fontFamily: 'inherit', minWidth: 0 }}
-          />
-          {student && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.72rem', fontWeight: 600, padding: '4px 10px', borderRadius: 8, whiteSpace: 'nowrap' }}>
-              <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700 }}>
-                {(student.fullNameAr || '؟').charAt(0)}
+      <div ref={stuRef} style={{ position: 'relative' }}>
+        <div className="glass-panel" style={{ padding: '14px 16px', border: '1px solid var(--glass-border)' }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={16} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input type="text" className="glass-input"
+              placeholder="ابحث عن طالب بالاسم، رقم النظام، أو الهاتف — ثم اختر اشتراكاً من الجهة المقابلة"
+              value={fStudentName}
+              onChange={e => {
+                const v = e.target.value;
+                clearStudent();
+                setFStudentName(v);
+                searchStudents(v);
+              }}
+              onFocus={() => { if (stuResults.length > 0) setShowStuDrop(true); }}
+              style={{ paddingRight: 36, paddingLeft: student ? 150 : 8, fontSize: '0.88rem' }}
+            />
+            {student && (
+              <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.7rem', fontWeight: 600, padding: '3px 8px', borderRadius: 8, whiteSpace: 'nowrap', maxWidth: '42%', overflow: 'hidden', textOverflow: 'ellipsis', zIndex: 1 }}>
+                <span style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--primary)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, flexShrink: 0 }}>
+                  {(student.fullNameAr || '؟').charAt(0)}
+                </span>
+                {student.fullNameAr}
+                <X size={12} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={resetSearch} />
               </span>
-              {student.fullNameAr} <span style={{ fontFamily: 'monospace', opacity: 0.6 }}>#{student.id}</span>
-              <X size={13} style={{ cursor: 'pointer', flexShrink: 0 }} onClick={resetSearch} />
-            </span>
-          )}
-          <button className="glass-btn sm secondary" onClick={() => setIsDeep(true)} style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-            <Layers size={13} /> بحث عميق
-          </button>
+            )}
+          </div>
         </div>
 
         {showStuDrop && stuResults.length > 0 && (
@@ -676,6 +715,30 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
           </div>
         )}
       </div>
+
+      {/* ── Student financial summary (live aggregates) ── */}
+      {student && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: 12 }}>
+          {[
+            { cls: 'blue', ico: <CreditCard size={17} />, c: '#6366f1', label: 'إجمالي الأقساط', val: studentLoading ? '…' : fmt(stStats.totalAmount), sub: `${stStats.totalCount} قسط` },
+            { cls: 'green', ico: <CheckCircle2 size={17} />, c: '#10b981', label: 'المدفوع', val: studentLoading ? '…' : fmt(stStats.paid), sub: `${stPaidPct}% من القيمة` },
+            { cls: 'amber', ico: <Clock size={17} />, c: '#f59e0b', label: 'المتبقي', val: studentLoading ? '…' : fmt(stStats.remaining), sub: `${stStats.totalCount - stStats.paidCount} قسط غير مسدد` },
+            { cls: '', ico: <AlertTriangle size={17} />, c: '#ef4444', label: 'أقساط متأخرة', val: studentLoading ? '…' : fmt(stStats.overdueAmount), sub: `${stStats.overdueCount} قسط متأخر` },
+          ].map((s, i) => (
+            <div key={i} className={`stat-card ${s.cls}`} style={{ padding: '12px 14px', border: '1px solid var(--glass-border)', overflow: 'hidden', position: 'relative' }}>
+              <div style={{ position: 'absolute', top: -10, left: -10, width: 60, height: 60, borderRadius: '50%', background: `${s.c}08`, pointerEvents: 'none' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${s.c}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.c, flexShrink: 0 }}>{s.ico}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2, fontWeight: 500 }}>{s.label}</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 700, lineHeight: 1.15, fontFamily: 'monospace', direction: 'ltr', textAlign: 'left' }}>{s.val}</div>
+                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: 1 }}>{s.sub}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {student ? (
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -877,6 +940,11 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                 {subs.map(sub => {
                   const isActive = String(selSub?.id) === String(sub.id) && selSub?._type === sub._type;
                   const stBadge = SUB_ST[sub.status] || { label: sub.status, cls: 'secondary' };
+                  const agg = subAgg[`${sub._type}:${sub.id}`];
+                  const paid = agg?.paid || 0;
+                  const remaining = Math.max(0, (sub.totalCost || 0) - paid);
+                  const pct = (sub.totalCost || 0) > 0 ? Math.min(100, Math.round((paid / (sub.totalCost || 1)) * 100)) : 0;
+                  const overdueN = agg?.overdue || 0;
                   return (
                     <div key={`${sub._type}-${sub.id}`} onClick={() => selectSub(sub)}
                       style={{
@@ -893,7 +961,10 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                             : <BookOpen size={13} color="var(--success)" style={{ flexShrink: 0 }} />}
                           <span style={{ fontWeight: 700, fontSize: '0.74rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub._name}</span>
                         </div>
-                        <span className={`badge ${stBadge.cls}`} style={{ fontSize: '0.5rem', flexShrink: 0 }}>{stBadge.label}</span>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                          {overdueN > 0 && <span className="badge danger" style={{ fontSize: '0.5rem' }}>{overdueN} متأخر</span>}
+                          <span className={`badge ${stBadge.cls}`} style={{ fontSize: '0.5rem' }}>{stBadge.label}</span>
+                        </div>
                       </div>
                       {sub.entity?.name && <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginBottom: 6 }}>{sub.entity.name}</div>}
                       <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
@@ -902,9 +973,16 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                           <div style={{ fontWeight: 700, fontSize: '0.72rem', fontFamily: 'monospace', direction: 'ltr', textAlign: 'right' }}>{fmt(sub.totalCost)}</div>
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '0.56rem', color: 'var(--text-muted)', marginBottom: 1 }}>دفعات</div>
-                          <div style={{ fontWeight: 600, fontSize: '0.72rem' }}>{sub.installmentsCount}</div>
+                          <div style={{ fontSize: '0.56rem', color: 'var(--text-muted)', marginBottom: 1 }}>المدفوع</div>
+                          <div style={{ fontWeight: 600, fontSize: '0.72rem', color: 'var(--success)', fontFamily: 'monospace', direction: 'ltr', textAlign: 'right' }}>{fmt(paid)}</div>
                         </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.56rem', color: 'var(--text-muted)', marginBottom: 1 }}>المتبقي</div>
+                          <div style={{ fontWeight: 600, fontSize: '0.72rem', color: remaining > 0 ? 'var(--danger)' : 'var(--text-muted)', fontFamily: 'monospace', direction: 'ltr', textAlign: 'right' }}>{fmt(remaining)}</div>
+                        </div>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 3, background: 'var(--glass-border)', overflow: 'hidden', marginBottom: 6 }}>
+                        <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, var(--success), var(--teal))', transition: 'width .4s ease' }} />
                       </div>
                       <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isActive ? (
@@ -914,7 +992,9 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                         ) : (
                           <span>{formatDate(sub.date)}</span>
                         )}
-                        <span style={{ marginRight: 'auto', fontFamily: 'monospace', fontSize: '0.6rem' }}>#{sub.id}</span>
+                        <span style={{ marginRight: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'monospace', fontSize: '0.6rem' }}>
+                          {pct}% مدفوع <span style={{ opacity: 0.6 }}>#{sub.id}</span>
+                        </span>
                       </div>
                     </div>
                   );
@@ -950,45 +1030,49 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>لا توجد أقساط بعد لهذا الاشتراك</div>
                     </div>
                   ) : (
-                    <div style={{ maxHeight: 'min(52vh, 460px)', overflowY: 'auto' }}>
-                      {subInstalls.map(inst => {
-                        const st = ST[inst.status] || { label: inst.status, cls: 'secondary' };
-                        const isOpen = selId === inst.id;
-                        return (
-                          <div key={inst.id} onClick={() => openDetail(inst.id)}
-                            style={{
-                              padding: '10px 14px', borderBottom: '1px solid var(--glass-border)',
-                              display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', transition: 'background .12s',
-                              background: isOpen ? 'var(--glass-bg-hover)' : 'transparent',
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = isOpen ? 'var(--glass-bg-hover)' : 'var(--glass-bg-hover)'}
-                            onMouseLeave={e => e.currentTarget.style.background = isOpen ? 'var(--glass-bg-hover)' : 'transparent'}>
-                            <div style={{ width: 30, height: 30, borderRadius: 9, background: isOpen ? 'var(--primary)' : 'var(--glass-bg)', color: isOpen ? '#fff' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: 700, flexShrink: 0 }}>
-                              {inst.installmentNumber}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                <span className={`badge ${st.cls}`} style={{ fontSize: '0.52rem', padding: '2px 7px', borderRadius: 4, fontWeight: 600 }}>{st.label}</span>
-                                {inst.paymentDest && (
-                                  <span className={`badge ${inst.paymentDest === 'ENTITY' ? 'primary' : 'teal'}`} style={{ fontSize: '0.5rem' }}>
-                                    {inst.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'}
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: 3 }}>
-                                استحقاق <strong style={{ fontFamily: 'monospace', fontSize: '0.66rem' }}>{formatDate(inst.dueDate)}</strong> • {inst.installmentNumber}/{inst.totalInstallments}
-                              </div>
-                            </div>
-                            <div style={{ textAlign: 'left', flexShrink: 0 }}>
-                              <div style={{ fontWeight: 700, fontSize: '0.76rem', fontFamily: 'monospace', direction: 'ltr' }}>{fmt(inst.amount)}</div>
-                              <div style={{ fontSize: '0.62rem', fontFamily: 'monospace', direction: 'ltr', color: remOf(inst) > 0 ? 'var(--danger)' : 'var(--success)' }}>
-                                {remOf(inst) > 0 ? `متبقي ${fmt(remOf(inst))}` : 'مسدد ✓'}
-                              </div>
-                            </div>
-                            <ChevronLeft size={15} style={{ color: 'var(--text-muted)', opacity: 0.5, flexShrink: 0 }} />
-                          </div>
-                        );
-                      })}
+                    <div className="glass-table-container" style={{ maxHeight: 'min(52vh, 460px)', overflowY: 'auto' }}>
+                      <table className="glass-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: 70 }}>القسط</th>
+                            <th>الحالة</th>
+                            <th>الاستحقاق</th>
+                            <th>المبلغ</th>
+                            <th>المدفوع</th>
+                            <th>المتبقي</th>
+                            <th style={{ width: 40 }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {subInstalls.map(inst => {
+                            const st = ST[inst.status] || { label: inst.status, cls: 'secondary' };
+                            const isOpen = selId === inst.id;
+                            return (
+                              <tr key={inst.id} className={`clickable ${isOpen ? 'active' : ''}`} onClick={() => openDetail(inst.id)}>
+                                <td style={{ whiteSpace: 'nowrap' }}>
+                                  <span style={{ fontWeight: 700, fontSize: '0.82rem' }}>{inst.installmentNumber}</span>
+                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>/{inst.totalInstallments}</span>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
+                                    <span className={`badge ${st.cls}`} style={{ fontSize: '0.58rem' }}>{st.label}</span>
+                                    {inst.paymentDest && (
+                                      <span className={`badge ${inst.paymentDest === 'ENTITY' ? 'primary' : 'teal'}`} style={{ fontSize: '0.48rem' }}>
+                                        {inst.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{formatDate(inst.dueDate)}</td>
+                                <td style={{ fontFamily: 'monospace', direction: 'ltr', textAlign: 'right', fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{fmt(inst.amount)}</td>
+                                <td style={{ fontFamily: 'monospace', direction: 'ltr', textAlign: 'right', fontSize: '0.8rem', color: 'var(--success)', whiteSpace: 'nowrap' }}>{fmt(inst.paidAmount)}</td>
+                                <td style={{ fontFamily: 'monospace', direction: 'ltr', textAlign: 'right', fontSize: '0.8rem', color: remOf(inst) > 0 ? 'var(--danger)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmt(remOf(inst))}</td>
+                                <td><ChevronLeft size={15} style={{ color: 'var(--text-muted)', opacity: 0.5 }} /></td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
