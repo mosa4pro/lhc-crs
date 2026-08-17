@@ -269,7 +269,7 @@ export const StudentManagementPage = () => {
   const getDisplayPhone = (s: Student): string => {
     try {
       const phones = typeof s.phones === 'string' ? JSON.parse(s.phones) : s.phones;
-      const codes = typeof s.phoneCodes === 'string' ? JSON.parse(s.phoneCodes || '[]') : [];
+      const codes = Array.isArray(s.phoneCodes) ? s.phoneCodes : (typeof s.phoneCodes === 'string' ? JSON.parse(s.phoneCodes || '[]') : []);
       return Array.isArray(phones) && phones[0] ? `${codes[0] || '+962'} ${typeof phones[0] === 'object' ? phones[0].number : phones[0]}` : '—';
     } catch { return '—'; }
   };

@@ -184,7 +184,7 @@ router.get('/', authMiddleware, requirePermission('finance.installments'), async
         include: { student: { select: { id: true, fullNameAr: true, fullNameEn: true, phones: true } } },
         orderBy
       });
-      return res.json(markOverdue(installments));
+      return res.json(await attachSubscriptionMeta(markOverdue(installments)));
     }
 
     const page = Math.max(1, parseInt(String(req.query.page)) || 1);
@@ -418,6 +418,9 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
       await prisma.financialTransaction.create({
         data: {
           studentId: installment.studentId,
+          subscriptionId: installment.subscriptionId,
+          subscriptionType: installment.subscriptionType,
+          installmentId: installment.id,
           type: 'EXPENSE',
           amount: expensesAmount,
           paymentMethod: paymentMethod || 'CASH',
@@ -507,6 +510,11 @@ router.post('/:id/void-payment', authMiddleware, requirePermission('finance.inst
         paymentWallet: null,
         paymentBank: null,
         senderInfo: null,
+        paymentDest: null,
+        paymentSubMethod: null,
+        paymentWalletRef: null,
+        checkNumber: null,
+        hawalaNumber: null,
       }
     });
 
@@ -553,6 +561,7 @@ router.post('/:id/refund', authMiddleware, requirePermission('finance.payments')
         receiptNumber,
         referenceNumber: installment.referenceNumber || null,
         paymentDest: installment.paymentDest || null,
+        expenseCategory: 'REFUND',
         notes: `استرجاع قسط ${installment.installmentNumber}/${installment.totalInstallments} — سند صرف ${receiptNumber}`
       }
     });

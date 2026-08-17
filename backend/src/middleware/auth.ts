@@ -49,6 +49,11 @@ export const requirePermission = (permissionName: string) => {
     const hasIt = permKeys.includes('ADMIN_ALL') || permKeys.includes(permissionName) || user.role === 'ADMIN';
 
     if (!hasIt) {
+      // Bare admin.X grants from any granular admin.X.* permission (e.g. admin.users ← admin.users.manage)
+      const bare = /^admin\.[a-zA-Z]+$/.exec(permissionName);
+      if (bare && permKeys.some(p => p.startsWith(`${bare[0]}.`))) {
+        return next();
+      }
       return res.status(403).json({ error: `ليس لديك صلاحية: ${permissionName}` });
     }
     next();

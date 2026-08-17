@@ -376,6 +376,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!state.user) return false;
     if (state.user.isAdmin || state.user.permissions.includes('ADMIN_ALL')) return true;
     if (state.user.permissions.includes(perm)) return true;
+    // Bare admin.X grants from any granular admin.X.* permission (e.g. admin.users ← admin.users.manage)
+    if (/^admin\.[a-zA-Z]+$/.test(perm) && state.user.permissions.some(p => p.startsWith(`${perm}.`))) return true;
     const aliases = PERMISSION_ALIASES[perm];
     if (aliases) {
       for (const alias of aliases) {

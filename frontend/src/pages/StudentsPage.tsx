@@ -357,9 +357,9 @@ const UniversitySelect = ({ value, onChange, ...rest }: { value: string; onChang
 function parsePhones(student: Student): PhoneEntry[] {
   try {
     const nums = typeof student.phones === 'string' ? JSON.parse(student.phones) : student.phones;
-    const codes = typeof student.phoneCodes === 'string' ? JSON.parse(student.phoneCodes || '[]') : [];
-    const wa = typeof student.whatsappOnly === 'string' ? JSON.parse(student.whatsappOnly || '[]') : [];
-    const ids = typeof student.isIdNumber === 'string' ? JSON.parse(student.isIdNumber || '[]') : [];
+    const codes = Array.isArray(student.phoneCodes) ? student.phoneCodes : (typeof student.phoneCodes === 'string' ? JSON.parse(student.phoneCodes || '[]') : []);
+    const wa = Array.isArray(student.whatsappOnly) ? student.whatsappOnly : (typeof student.whatsappOnly === 'string' ? JSON.parse(student.whatsappOnly || '[]') : []);
+    const ids = Array.isArray(student.isIdNumber) ? student.isIdNumber : (typeof student.isIdNumber === 'string' ? JSON.parse(student.isIdNumber || '[]') : []);
 
     if (Array.isArray(nums)) {
       return nums.map((n: any, i: number) => ({
@@ -842,6 +842,8 @@ export const StudentsPage = () => {
 
       const payload: Record<string, any> = {
         fullNameAr: form.fullNameAr?.trim() || domName?.value?.trim() || '',
+        fullNameEn: form.fullNameEn?.trim() || '',
+        gender: form.gender || undefined,
         dob: form.dob || domDob?.value || '',
         nationality,
         nationalityName: nationality === 'OTHER' ? form.nationalityName : undefined,

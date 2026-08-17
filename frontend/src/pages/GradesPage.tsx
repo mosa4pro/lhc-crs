@@ -283,7 +283,8 @@ export const GradesPage = () => {
       toast.success('تم حفظ العلامات بنجاح');
       setEdits({});
       const data = await apiFetch(`/grades/section/${selectedSection}/students`);
-      setSectionEnrollments(data);
+      setSectionEnrollments(data.enrollments || []);
+      setInstructorCanEdit(data.instructorCanEdit ?? true);
     } catch (e: any) {
       toast.error(e.message);
     } finally {

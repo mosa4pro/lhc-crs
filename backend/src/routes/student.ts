@@ -235,6 +235,7 @@ router.get('/', authMiddleware, requirePermission('students.view'), async (req, 
           { passportId: { contains: q } },
           { personalId: { contains: q } },
           { id: { contains: q } },
+          { phones: { contains: q } },
         ]
       });
     }
@@ -737,9 +738,26 @@ router.put('/:id/transfer', authMiddleware, requirePermission('students.edit'), 
 
     const prevMarkerId = student.markerEmployeeId;
 
+    // Re-derive supervisorEmployeeId from the new marker's supervisor (mirrors create logic)
+    let newSupervisorId = null;
+    if (targetEmp.supervisorId) newSupervisorId = targetEmp.supervisorId;
+    else {
+      const empUser = await prisma.user.findFirst({
+        where: { employeeId: targetEmp.id },
+        select: { supervisorId: true }
+      });
+      if (empUser?.supervisorId) {
+        const supUser = await prisma.user.findUnique({
+          where: { id: empUser.supervisorId },
+          select: { employeeId: true }
+        });
+        if (supUser?.employeeId) newSupervisorId = supUser.employeeId;
+      }
+    }
+
     await prisma.student.update({
       where: { id: (req.params.id as string) },
-      data: { markerEmployeeId: parseInt(targetEmployeeId) }
+      data: { markerEmployeeId: parseInt(targetEmployeeId), supervisorEmployeeId: newSupervisorId }
     });
 
     const actingUser = (req as any).user;

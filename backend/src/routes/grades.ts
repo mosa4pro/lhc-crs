@@ -61,7 +61,7 @@ router.get('/section/:sectionId/students', authMiddleware, async (req, res) => {
     }
 
     const enrollments = await prisma.studentSection.findMany({
-      where: { sectionId },
+      where: { sectionId, status: 'ENROLLED' },
       include: { student: true },
       orderBy: { enrollDate: 'asc' }
     });
@@ -265,6 +265,20 @@ router.get('/student/:studentId', authMiddleware, selfOrPerm('students.view'), a
       orderBy: { enrollDate: 'asc' }
     });
     return res.json(sections);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET academic stats (used by AcademicReportsPage KPIs)
+router.get('/admin/stats', authMiddleware, requirePermission('students.view'), async (req, res) => {
+  try {
+    const [withGrades] = await Promise.all([
+      prisma.student.count({
+        where: { sections: { some: { OR: [{ grade: { not: null } }, { result: { not: null } }] } } }
+      }),
+    ]);
+    return res.json({ withGrades });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

@@ -45,14 +45,15 @@ export const AcademicReportsPage = () => {
   const loadStats = async () => {
     setIsLoading(true);
     try {
-      const [studRes, gradesRes] = await Promise.all([
+      const [studRes, activeRes, gradesRes] = await Promise.all([
         apiFetch('/students?limit=1'),
-        apiFetch('/grades/admin/student-sections?limit=1').catch(() => ({ total: 0 })),
+        apiFetch('/students?limit=1&status=ACTIVE'),
+        apiFetch('/grades/admin/stats'),
       ]);
       setStats({
         totalStudents: studRes.total || 0,
-        activeStudents: studRes.activeCount || 0,
-        withGrades: gradesRes.total || 0,
+        activeStudents: activeRes.total || 0,
+        withGrades: gradesRes.withGrades || 0,
       });
     } catch { }
     finally { setIsLoading(false); }

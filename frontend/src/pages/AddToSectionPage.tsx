@@ -162,7 +162,9 @@ export const AddToSectionPage = () => {
   }, [selectedSection, apiFetch]);
 
   const activeSection = [...sections, ...hSectionList].find(s => String(s.id) === selectedSection);
-  const enrolledStudents = (activeSection?.students || []).map((ss: any) => ss.student).filter(Boolean);
+  const enrolledStudents = (activeSection?.students || [])
+  .filter((ss: any) => !ss.status || ss.status === 'ENROLLED')
+  .map((ss: any) => ss.student).filter(Boolean);
   const enrolledIds = new Set(enrolledStudents.map((s: any) => s.id));
   const eligibleIds = new Set(eligibleStudents.map((s: any) => s.id));
   const nonEnrolled = eligibleStudents.filter((s: any) => !enrolledIds.has(s.id));

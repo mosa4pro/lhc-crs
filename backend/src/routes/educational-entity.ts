@@ -4,6 +4,26 @@ import { authMiddleware, requirePermission } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Parse address/contactName out of notes (stored as structured lines)
+const parseEntityMeta = (e: any) => {
+  let address = '';
+  let contactName = '';
+  const notes = e.notes || '';
+  const a = notes.match(/\n?العنوان:\s*(.*?)(?=\n|$)/);
+  if (a) address = a[1].trim();
+  const c = notes.match(/\n?المسؤول:\s*(.*?)(?=\n|$)/);
+  if (c) contactName = c[1].trim();
+  return { ...e, address, contactName };
+};
+
+// Strip previously-stored address/contactName lines so re-saving never duplicates them
+const stripEntityMeta = (notes: string) =>
+  String(notes || '')
+    .replace(/\n?العنوان:\s*.*?(?=\n|$)/g, '')
+    .replace(/\n?المسؤول:\s*.*?(?=\n|$)/g, '')
+    .replace(/^\n+/, '')
+    .replace(/\n{2,}/g, '\n');
+
 router.get('/', authMiddleware, async (req, res) => {
   const authUser = (req as any).user;
   const where: any = {};
@@ -17,14 +37,14 @@ router.get('/', authMiddleware, async (req, res) => {
     include: { rooms: true },
     orderBy: { createdAt: 'desc' }
   });
-  res.json(entities);
+  res.json(entities.map(parseEntityMeta));
 });
 
 router.post('/', authMiddleware, requirePermission('admin.entities'), async (req, res) => {
   try {
-    let notes = req.body.notes || '';
-    if (req.body.address) notes += `\nالعنوان: ${req.body.address}`;
-    if (req.body.contactName) notes += `\nالمسؤول: ${req.body.contactName}`;
+    let notes = stripEntityMeta(req.body.notes || '');
+    if (req.body.address) notes += `${notes ? '\n' : ''}العنوان: ${req.body.address}`;
+    if (req.body.contactName) notes += `${notes ? '\n' : ''}المسؤول: ${req.body.contactName}`;
 
     const data = {
       name: req.body.name,
@@ -49,9 +69,9 @@ router.post('/', authMiddleware, requirePermission('admin.entities'), async (req
 
 router.put('/:id', authMiddleware, requirePermission('admin.entities'), async (req, res) => {
   try {
-    let notes = req.body.notes || '';
-    if (req.body.address) notes += `\nالعنوان: ${req.body.address}`;
-    if (req.body.contactName) notes += `\nالمسؤول: ${req.body.contactName}`;
+    let notes = stripEntityMeta(req.body.notes || '');
+    if (req.body.address) notes += `${notes ? '\n' : ''}العنوان: ${req.body.address}`;
+    if (req.body.contactName) notes += `${notes ? '\n' : ''}المسؤول: ${req.body.contactName}`;
 
     const data: any = {};
     if (req.body.name !== undefined) data.name = req.body.name;
@@ -67,7 +87,7 @@ router.put('/:id', authMiddleware, requirePermission('admin.entities'), async (r
     if (req.body.email !== undefined || req.body.contactEmail !== undefined) {
       data.contactEmail = req.body.email || req.body.contactEmail || null;
     }
-    if (notes) data.notes = notes;
+    data.notes = notes || null;
 
     const entity = await prisma.educationalEntity.update({ where: { id: parseInt(req.params.id as string) }, data });
     res.json(entity);

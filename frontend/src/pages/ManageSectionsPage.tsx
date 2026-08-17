@@ -410,7 +410,7 @@ export const ManageSectionsPage = () => {
                     onClick={() => handleViewStudents(s)}
                     style={{ fontSize: '0.78rem' }}
                   >
-                    <Eye size={13}/> عرض ({s.students?.length ?? 0})
+                    <Eye size={13}/> عرض ({s._count?.students ?? s.students?.length ?? 0})
                   </button>
                 </td>
                 <td>

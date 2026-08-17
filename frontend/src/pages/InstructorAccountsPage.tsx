@@ -156,7 +156,7 @@ export const InstructorAccountsPage = () => {
         toast.success('تم التحديث', 'تم تحديث إعدادات البوابة');
 
         if (password) {
-          printReceipt(selectedInstructor.name, selectedInstructor.id, password, { name: centerName, nameEn: centerNameEn, logo: centerLogo });
+          printReceipt(selectedInstructor.name, eu.username, password, { name: centerName, nameEn: centerNameEn, logo: centerLogo });
         }
       } else {
         const result = await apiFetch('/auth/users', {

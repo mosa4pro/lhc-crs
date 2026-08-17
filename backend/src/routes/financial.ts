@@ -65,10 +65,10 @@ router.get('/summary', authMiddleware, requirePermission('finance.view'), async 
 
     const [totalReceived, totalPayments, monthlyReceipts, todayReceipts, pendingInstallments, overdueInstallments] = await Promise.all([
       prisma.financialTransaction.aggregate({ where: { type: 'RECEIPT', status: 'COMPLETED' }, _sum: { amount: true } }),
-      prisma.financialTransaction.aggregate({ where: { type: 'PAYMENT', status: 'COMPLETED' }, _sum: { amount: true } }),
+      prisma.financialTransaction.aggregate({ where: { type: { in: ['PAYMENT', 'EXPENSE'] }, status: 'COMPLETED' }, _sum: { amount: true } }),
       prisma.financialTransaction.aggregate({ where: { type: 'RECEIPT', status: 'COMPLETED', date: { gte: startOfMonth } }, _sum: { amount: true }, _count: true }),
       prisma.financialTransaction.aggregate({ where: { type: 'RECEIPT', status: 'COMPLETED', date: { gte: startOfDay } }, _sum: { amount: true }, _count: true }),
-      prisma.installment.aggregate({ where: { status: 'PENDING' }, _sum: { remainingAmount: true }, _count: true }),
+      prisma.installment.aggregate({ where: { status: { in: ['PENDING', 'PARTIAL'] } }, _sum: { remainingAmount: true }, _count: true }),
       prisma.installment.aggregate({ where: { status: 'OVERDUE' }, _sum: { remainingAmount: true }, _count: true })
     ]);
 
@@ -217,7 +217,7 @@ router.get('/reports', authMiddleware, requirePermission('finance.view'), async 
 
     // 4. Fetch Financial Transactions (Payments/Expenses) matching date filter
     const paymentWhere: any = {
-      type: 'PAYMENT',
+      type: { in: ['PAYMENT', 'EXPENSE'] },
       status: 'COMPLETED'
     };
     if (dateFrom || dateTo) {
@@ -594,7 +594,7 @@ router.get('/students/:studentId/installment-balance', authMiddleware, requirePe
       prisma.installment.findMany({ where: { studentId } }),
     ]);
     let balance = installments
-      .filter(i => i.subscriptionType === 'EXTRA' && i.status !== 'REFUNDED')
+      .filter(i => i.subscriptionType === 'EXTRA')
       .reduce((s, i) => s + remOf(i), 0);
     for (const sub of [...diplomaSubs, ...courseSubs]) {
       const paid = installments
@@ -603,7 +603,7 @@ router.get('/students/:studentId/installment-balance', authMiddleware, requirePe
       balance += Math.max(0, (sub.totalCost || 0) - paid);
     }
     const unpaidInsts = installments
-      .filter(i => i.status !== 'PAID' && i.status !== 'REFUNDED' && remOf(i) > 0)
+      .filter(i => i.status !== 'PAID' && remOf(i) > 0)
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
     return res.json({ balance, installments: unpaidInsts, totalInstallments: unpaidInsts.length });
   } catch (err: any) {
@@ -629,7 +629,7 @@ router.post('/pay-student', authMiddleware, requirePermission('finance.receipts'
     // Get unpaid installments ordered by due date (FIFO)
     const remOf = (i: any) => Math.max(0, (i.amount || 0) - (i.paidAmount || 0));
     const unpaid = (await prisma.installment.findMany({
-      where: { studentId, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
+      where: { studentId, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE', 'REFUNDED'] } },
       orderBy: { dueDate: 'asc' }
     })).filter(i => remOf(i) > 0);
 
@@ -704,6 +704,11 @@ router.post('/pay-student', authMiddleware, requirePermission('finance.receipts'
           paymentBank: (paymentMethod === 'CLICK' && paymentBank) ? paymentBank : inst.paymentBank,
           senderInfo: (paymentMethod === 'CLICK' && senderInfo) ? senderInfo : inst.senderInfo,
           referenceNumber: referenceNumber || inst.referenceNumber,
+          paymentDest: paymentDest || inst.paymentDest,
+          paymentSubMethod: paymentSubMethod || inst.paymentSubMethod,
+          paymentWalletRef: paymentWalletRef || inst.paymentWalletRef,
+          checkNumber: checkNumber || inst.checkNumber,
+          hawalaNumber: hawalaNumber || inst.hawalaNumber,
         }
       });
 

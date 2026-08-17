@@ -118,6 +118,23 @@ export const SmartQueriesPage = () => {
                     </tbody>
                   </>
                 )}
+              {queryType === 'subscriptions' && (
+                  <>
+                    <thead><tr><th>الطالب</th><th>البرنامج</th><th>النوع</th><th>الجهة</th><th>القيمة</th><th>الحالة</th></tr></thead>
+                    <tbody>
+                      {results.map(s => (
+                        <tr key={`${s.type}-${s.id}`}>
+                          <td style={{ fontWeight: 600 }}>{s.student?.fullNameAr || '—'}</td>
+                          <td>{s.programName || '—'}</td>
+                          <td><span className={`badge ${s.type === 'DIPLOMA' ? 'primary' : 'teal'}`} style={{ fontSize: '0.75rem' }}>{s.type === 'DIPLOMA' ? 'دبلوم' : 'دورة'}</span></td>
+                          <td style={{ fontSize: '0.82rem' }}>{s.entityName || 'مركز خارجي / مستقل'}</td>
+                          <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{Number(s.totalCost || 0).toLocaleString()} د.أ</td>
+                          <td><span className={`badge ${s.status === 'ACTIVE' ? 'success' : s.status === 'CANCELED' ? 'danger' : 'warning'}`} style={{ fontSize: '0.75rem' }}>{s.status}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </>
+                )}
               </table>
             </div>
           </div>

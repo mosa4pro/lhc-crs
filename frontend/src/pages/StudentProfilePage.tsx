@@ -192,7 +192,7 @@ export const StudentProfilePage = () => {
       ${s.fullNameEn ? `<th>الاسم (إنج)</th><td>${s.fullNameEn}</td>` : '<td></td><td></td>'}
       </tr>${s.email ? `<tr><th>البريد</th><td colspan="3">${s.email}</td></tr>` : ''}
       ${s.address ? `<tr><th>العنوان</th><td colspan="3">${s.address}</td></tr>` : ''}
-      ${s.birthDate ? `<tr><th>تاريخ الميلاد</th><td colspan="3">${formatDate(s.birthDate)}</td></tr>` : ''}
+      ${s.dob ? `<tr><th>تاريخ الميلاد</th><td colspan="3">${formatDate(s.dob)}</td></tr>` : ''}
     </table></div>`;
     if (printSections.schedule) { const secs = getActiveSections(); if (secs.length) {
       const fmtDate = (d: any) => d ? formatDate(d) : '—';
@@ -422,7 +422,7 @@ export const StudentProfilePage = () => {
                 <Field label="الاسم (عربي)" value={selectedStudent.fullNameAr} />
                 <Field label="الهاتف" value={`0${getPhone(selectedStudent.phones)}`} />
                 <Field label="رقم الطالب" value={selectedStudent.id} />
-                <Field label="تاريخ الميلاد" value={selectedStudent.birthDate ? formatDate(selectedStudent.birthDate) : null} />
+                <Field label="تاريخ الميلاد" value={selectedStudent.dob ? formatDate(selectedStudent.dob) : null} />
                 <Field label="الجنس" value={selectedStudent.gender === 'MALE' ? 'ذكر' : selectedStudent.gender === 'FEMALE' ? 'أنثى' : null} />
                 <Field label="الجنسية" value={selectedStudent.nationality === 'JO' ? 'أردني' : selectedStudent.nationality === 'OTHER' ? 'غير أردني' : selectedStudent.nationality} />
                 {selectedStudent.fullNameEn && <Field label="الاسم (إنج)" value={selectedStudent.fullNameEn} />}

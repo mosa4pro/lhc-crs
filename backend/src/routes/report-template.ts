@@ -456,7 +456,7 @@ router.post('/execute', authMiddleware, async (req, res) => {
         SELECT ${selectClause}
         FROM "FinancialTransaction" ft
         JOIN "Student" s ON s.id = ft."studentId"
-        LEFT JOIN subs sub ON sub.id = ft."subscriptionId"::int
+        LEFT JOIN subs sub ON sub.id = CASE WHEN ft."subscriptionId" ~ '^[0-9]+$' THEN ft."subscriptionId"::int ELSE NULL END
         LEFT JOIN "Installment" inst ON inst.id = ft."installmentId"
         LEFT JOIN "Commission" comm ON comm."studentId" = s.id AND comm."subscriptionId" = ft."subscriptionId"
         LEFT JOIN "Employee" emp ON emp.id = ft."employeeId"
@@ -582,16 +582,12 @@ router.get('/filter-defs/:type', authMiddleware, async (req, res) => {
         { group: 'التاريخ', field: 'transactionDateTo', label: 'إلى تاريخ المعاملة', type: 'date' },
         // المعاملة
         { group: 'المعاملة', field: 'transactionType', label: 'نوع المعاملة', type: 'select', options: [
-          { value: '', label: 'الكل' }, { value: 'PAYMENT', label: 'دفع' }, { value: 'EXPENSE', label: 'مصروف' },
-          { value: 'REFUND', label: 'استرداد' }, { value: 'TRANSFER', label: 'تحويل' },
+          { value: '', label: 'الكل' }, { value: 'RECEIPT', label: 'سند قبض' }, { value: 'PAYMENT', label: 'سند صرف' },
+          { value: 'EXPENSE', label: 'مصروف' }, { value: 'ADJUSTMENT', label: 'تسوية' },
         ]},
         { group: 'المعاملة', field: 'paymentMethod', label: 'طريقة الدفع', type: 'select', options: [
           { value: '', label: 'الكل' }, { value: 'CASH', label: 'نقداً' }, { value: 'CARD', label: 'بطاقة' },
           { value: 'BANK_TRANSFER', label: 'تحويل بنكي' }, { value: 'CHECK', label: 'شيك' },
-        ]},
-        { group: 'المعاملة', field: 'paymentStatus', label: 'حالة الدفع', type: 'select', options: [
-          { value: '', label: 'الكل' }, { value: 'PAID', label: 'مدفوع بالكامل' },
-          { value: 'PARTIAL', label: 'دفع جزئي' }, { value: 'UNPAID', label: 'لم يدفع' },
         ]},
         { group: 'المعاملة', field: 'minAmount', label: 'المبلغ الأدنى', type: 'number', placeholder: '0' },
         { group: 'المعاملة', field: 'maxAmount', label: 'المبلغ الأعلى', type: 'number', placeholder: '∞' },

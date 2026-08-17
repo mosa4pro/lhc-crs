@@ -70,7 +70,9 @@ router.get('/section/:sectionId', authMiddleware, async (req, res) => {
       include: {
         course: true,
         instructor: true,
+        room: true,
         students: {
+          where: { status: 'ENROLLED' },
           include: {
             student: { select: { id: true, fullNameAr: true, phones: true } }
           }
@@ -163,11 +165,11 @@ router.post('/', authMiddleware, requirePermission('attendance.manage'), async (
     if (!sec) return res.status(404).json({ error: 'الشعبة غير موجودة' });
     if (!sec.instructorCanEditAttendance) return res.status(403).json({ error: 'تم تأمين الحضور، لا يمكن التعديل' });
 
-    // Validate day
+    // Validate day (skipped for per-day schedule sections where days is empty)
     const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     const day = dayNames[new Date(date).getDay()];
     const sectionDays: string[] = JSON.parse(sec.days);
-    if (!sectionDays.includes(day)) return res.status(400).json({ error: `اليوم المحدد ليس من أيام انعقاد الشعبة` });
+    if (sectionDays.length > 0 && !sectionDays.includes(day)) return res.status(400).json({ error: `اليوم المحدد ليس من أيام انعقاد الشعبة` });
 
     const record = await prisma.attendance.upsert({
       where: {
@@ -203,11 +205,11 @@ router.post('/bulk', authMiddleware, requirePermission('attendance.manage'), asy
     if (!sec) return res.status(404).json({ error: 'الشعبة غير موجودة' });
     if (!sec.instructorCanEditAttendance) return res.status(403).json({ error: 'تم تأمين الحضور، لا يمكن التعديل' });
 
-    // Validate day
+    // Validate day (skipped for per-day schedule sections where days is empty)
     const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     const day = dayNames[new Date(date).getDay()];
     const sectionDays: string[] = JSON.parse(sec.days);
-    if (!sectionDays.includes(day)) return res.status(400).json({ error: `اليوم "${day}" ليس من أيام انعقاد الشعبة (${sectionDays.join(', ')})` });
+    if (sectionDays.length > 0 && !sectionDays.includes(day)) return res.status(400).json({ error: `اليوم "${day}" ليس من أيام انعقاد الشعبة (${sectionDays.join(', ')})` });
 
     const secId = parseInt(sectionId);
     const attendanceDate = new Date(date);
@@ -370,6 +372,7 @@ router.get('/section-summary/:sectionId', authMiddleware, async (req, res) => {
       include: {
         course: true,
         students: {
+          where: { status: 'ENROLLED' },
           include: { student: { select: { id: true, fullNameAr: true, phones: true } } }
         }
       }

@@ -58,14 +58,26 @@ async function awardPoints(studentId: string): Promise<void> {
   }
 }
 
-// Get total count of subscriptions (course + diploma)
+// Get list of subscriptions (course + diploma) — used by smart queries
 router.get('/', authMiddleware, requirePermission('subscriptions.view'), async (req, res) => {
   try {
-    const [courseCount, diplomaCount] = await Promise.all([
-      prisma.courseSubscription.count(),
-      prisma.diplomaSubscription.count()
+    const [diplomaSubs, courseSubs] = await Promise.all([
+      prisma.diplomaSubscription.findMany({
+        include: { student: { select: { id: true, fullNameAr: true, fullNameEn: true } }, diploma: { select: { name: true } }, entity: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: Math.min(parseInt(String(req.query.limit)) || 200, 500)
+      }),
+      prisma.courseSubscription.findMany({
+        include: { student: { select: { id: true, fullNameAr: true, fullNameEn: true } }, course: { select: { name: true } }, entity: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: Math.min(parseInt(String(req.query.limit)) || 200, 500)
+      })
     ]);
-    return res.json({ total: courseCount + diplomaCount });
+    const data = [
+      ...diplomaSubs.map(s => ({ id: s.id, type: 'DIPLOMA', programName: (s as any).diploma?.name, entityName: (s as any).entity?.name, studentId: s.studentId, student: s.student, totalCost: s.totalCost, status: s.status, date: s.date })),
+      ...courseSubs.map(s => ({ id: s.id, type: 'COURSE', programName: (s as any).course?.name, entityName: (s as any).entity?.name, studentId: s.studentId, student: s.student, totalCost: s.totalCost, status: s.status, date: s.date }))
+    ];
+    return res.json({ data, total: data.length });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -601,7 +613,7 @@ router.put('/diploma/:id/complete', authMiddleware, requirePermission('subscript
         await createFirstInstallmentPayment(sub.studentId, String(sub.id), 'DIPLOMA',
           createdInsts[0].id, createdInsts[0].amount, firstPaymentMethod || 'CASH', firstPaymentRef || '',
           firstPaymentDest, firstPaymentSubMethod, firstPaymentWalletRef, firstPaymentBank, firstPaymentCheckNum, firstPaymentHawalaNum);
-        await prisma.installment.update({ where: { id: createdInsts[0].id }, data: { paidAmount: createdInsts[0].amount, remainingAmount: 0, status: 'PAID', paymentDate: new Date(), paymentMethod: firstPaymentMethod || 'CASH' } });
+        await prisma.installment.update({ where: { id: createdInsts[0].id }, data: { paidAmount: createdInsts[0].amount, remainingAmount: 0, status: 'PAID', paymentDate: new Date(), paymentMethod: firstPaymentMethod || 'CASH', paymentDest: firstPaymentDest || null, paymentSubMethod: firstPaymentSubMethod || null, paymentWalletRef: firstPaymentWalletRef || null, paymentBank: firstPaymentBank || null, checkNumber: firstPaymentCheckNum || null, hawalaNumber: firstPaymentHawalaNum || null } });
       }
     }
 
@@ -656,7 +668,7 @@ router.put('/course/:id/complete', authMiddleware, requirePermission('subscripti
         await createFirstInstallmentPayment(sub.studentId, String(sub.id), 'COURSE',
           createdInsts[0].id, createdInsts[0].amount, firstPaymentMethod || 'CASH', firstPaymentRef || '',
           firstPaymentDest, firstPaymentSubMethod, firstPaymentWalletRef, firstPaymentBank, firstPaymentCheckNum, firstPaymentHawalaNum);
-        await prisma.installment.update({ where: { id: createdInsts[0].id }, data: { paidAmount: createdInsts[0].amount, remainingAmount: 0, status: 'PAID', paymentDate: new Date(), paymentMethod: firstPaymentMethod || 'CASH' } });
+        await prisma.installment.update({ where: { id: createdInsts[0].id }, data: { paidAmount: createdInsts[0].amount, remainingAmount: 0, status: 'PAID', paymentDate: new Date(), paymentMethod: firstPaymentMethod || 'CASH', paymentDest: firstPaymentDest || null, paymentSubMethod: firstPaymentSubMethod || null, paymentWalletRef: firstPaymentWalletRef || null, paymentBank: firstPaymentBank || null, checkNumber: firstPaymentCheckNum || null, hawalaNumber: firstPaymentHawalaNum || null } });
       }
     }
 
