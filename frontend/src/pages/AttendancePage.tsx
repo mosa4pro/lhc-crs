@@ -28,6 +28,8 @@ interface Section {
   room?: { id: number; name: string };
   days: string; startTime: string; endTime: string;
   status: string;
+  perDaySchedule?: boolean;
+  scheduleDetails?: string;
   _count?: { students: number };
 }
 
@@ -72,6 +74,26 @@ const dayLabels: Record<string, string> = {
 const formatDays = (str: string) => {
   try { return (JSON.parse(str) as string[]).map(d => dayLabels[d] || d).join('، '); }
   catch { return str; }
+};
+
+const secScheduleDays = (sec: Section) => {
+  if (sec.perDaySchedule && sec.scheduleDetails) {
+    try {
+      const dets = JSON.parse(sec.scheduleDetails) as { day: string }[];
+      if (Array.isArray(dets) && dets.length) return dets.map(s => dayLabels[s.day?.trim().toUpperCase()] || s.day).join('، ');
+    } catch { /* ignore */ }
+  }
+  return formatDays(sec.days);
+};
+
+const secScheduleTime = (sec: Section) => {
+  if (sec.perDaySchedule && sec.scheduleDetails) {
+    try {
+      const dets = JSON.parse(sec.scheduleDetails) as { startTime: string; endTime: string }[];
+      if (Array.isArray(dets) && dets.length) return dets.map(s => `${s.startTime}-${s.endTime}`).join(' | ');
+    } catch { /* ignore */ }
+  }
+  return `${sec.startTime} - ${sec.endTime}`;
 };
 
 export const AttendancePage = () => {
@@ -474,8 +496,8 @@ export const AttendancePage = () => {
             {[
               { label: 'القاعة', value: sectionInfo.room?.name },
               { label: 'المحاضر', value: sectionInfo.instructor?.name },
-              { label: 'الأيام', value: formatDays(sectionInfo.days) },
-              { label: 'الوقت', value: `${sectionInfo.startTime} - ${sectionInfo.endTime}` },
+              { label: 'الأيام', value: secScheduleDays(sectionInfo) },
+              { label: 'الوقت', value: secScheduleTime(sectionInfo) },
             ].map(({ label, value }) => value ? (              <div key={label} style={{
                 background: 'var(--primary-light)', borderRadius: 8, padding: '5px 14px',
                 fontSize: '0.82rem', display: 'flex', gap: 6, alignItems: 'center'

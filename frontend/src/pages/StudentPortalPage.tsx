@@ -22,6 +22,48 @@ const DAYS_ORDER = ['SAT', 'SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI'];
 const TIME_SLOTS = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00',
   '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'];
 
+const parseScheduleDetails = (sec: any): { day: string; startTime: string; endTime: string }[] => {
+  if (!sec?.scheduleDetails) return [];
+  try {
+    const d = typeof sec.scheduleDetails === 'string' ? JSON.parse(sec.scheduleDetails) : sec.scheduleDetails;
+    return Array.isArray(d) ? d : [];
+  } catch { return []; }
+};
+
+const secScheduleDays = (sec: any) => {
+  if (sec?.perDaySchedule) {
+    const dets = parseScheduleDetails(sec);
+    if (dets.length) return dets.map(s => DAY_LABELS[s.day?.trim().toUpperCase()] || s.day).join('، ');
+  }
+  try {
+    const days = JSON.parse(sec?.days || '[]') as string[];
+    if (Array.isArray(days) && days.length) return days.map(d => DAY_LABELS[d] || d).join('، ');
+  } catch { /* ignore */ }
+  return '—';
+};
+
+const secScheduleTime = (sec: any) => {
+  if (sec?.perDaySchedule) {
+    const dets = parseScheduleDetails(sec);
+    if (dets.length) return dets.map(s => `${s.startTime}-${s.endTime}`).join(' | ');
+  }
+  return sec?.startTime && sec?.endTime ? `${sec.startTime} – ${sec.endTime}` : '—';
+};
+
+const secScheduleSlots = (sec: any): { day: string; startTime: string; endTime: string }[] => {
+  if (sec?.perDaySchedule) {
+    const dets = parseScheduleDetails(sec);
+    if (dets.length) return dets;
+  }
+  try {
+    const days = JSON.parse(sec?.days || '[]') as string[];
+    if (Array.isArray(days) && days.length && sec?.startTime && sec?.endTime) {
+      return days.map(d => ({ day: d, startTime: sec.startTime, endTime: sec.endTime }));
+    }
+  } catch { /* ignore */ }
+  return [];
+};
+
 const attStatus = {
   PRESENT: { label: 'حاضر',  cls: 'success', Icon: CheckCircle },
   ABSENT:  { label: 'غائب',  cls: 'danger',  Icon: XCircle    },
@@ -98,14 +140,11 @@ export const StudentPortalPage = () => {
   const scheduleGrid: Record<string, Record<string, any[]>> = {};
   DAYS_ORDER.forEach(d => { scheduleGrid[d] = {}; TIME_SLOTS.forEach(t => { scheduleGrid[d][t] = []; }); });
   (studentData?.sections || []).filter((ss: any) => ss.status === 'ENROLLED').forEach((ss: any) => {
-    try {
-      const days: string[] = JSON.parse(ss.section?.days || '[]');
-      days.forEach(d => {
-        if (scheduleGrid[d]) TIME_SLOTS.forEach(slot => {
-          if (slot >= ss.section.startTime && slot < ss.section.endTime) scheduleGrid[d][slot].push(ss);
-        });
+    secScheduleSlots(ss.section).forEach(slot => {
+      if (scheduleGrid[slot.day]) TIME_SLOTS.forEach(t => {
+        if (t >= slot.startTime && t < slot.endTime) scheduleGrid[slot.day][t].push(ss);
       });
-    } catch { }
+    });
   });
 
   const enrolledSections = (studentData?.sections || []).filter((ss: any) => ss.status === 'ENROLLED');
@@ -355,13 +394,12 @@ export const StudentPortalPage = () => {
                         <thead><tr><th>المادة</th><th>المحاضر</th><th>الأيام</th><th>الوقت</th><th>القاعة</th><th>الحالة</th></tr></thead>
                         <tbody>
                           {enrolledSections.map((ss: any) => {
-                            const days = JSON.parse(ss.section?.days || '[]') as string[];
                             return (
                               <tr key={ss.id}>
                                 <td style={{ fontWeight: 700 }}>{ss.section?.course?.name}</td>
                                 <td style={{ fontSize: '0.85rem' }}>{ss.section?.instructor?.name}</td>
-                                <td style={{ fontSize: '0.82rem' }}>{days.map(d => DAY_LABELS[d]).join('، ')}</td>
-                                <td style={{ direction: 'ltr', fontSize: '0.82rem' }}>{ss.section?.startTime} – {ss.section?.endTime}</td>
+                                <td style={{ fontSize: '0.82rem' }}>{secScheduleDays(ss.section)}</td>
+                                <td style={{ direction: 'ltr', fontSize: '0.82rem' }}>{secScheduleTime(ss.section)}</td>
                                 <td style={{ fontSize: '0.82rem' }}>
                                   <div>{ss.section?.room?.name}</div>
                                   <LearningTypeBadge room={ss.section?.room} style={{ marginTop: 2 }} />

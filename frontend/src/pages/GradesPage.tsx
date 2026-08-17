@@ -41,6 +41,8 @@ interface Section {
   days: string; startTime: string; endTime: string;
   room?: { id: number; name: string };
   status: string;
+  perDaySchedule?: boolean;
+  scheduleDetails?: string;
   _count?: { students: number };
 }
 
@@ -358,6 +360,16 @@ export const GradesPage = () => {
     try { return JSON.parse(daysJson); } catch { return []; }
   };
 
+  const secScheduleLabel = (s: Section) => {
+    if (s.perDaySchedule && s.scheduleDetails) {
+      try {
+        const dets = JSON.parse(s.scheduleDetails) as { day: string; startTime: string; endTime: string }[];
+        if (Array.isArray(dets) && dets.length) return dets.map(d => `${d.day} ${d.startTime}-${d.endTime}`).join(' | ');
+      } catch { /* ignore */ }
+    }
+    return s.startTime ? `${s.startTime}-${s.endTime}` : '';
+  };
+
   const selectedSectionInfo = sections.find(s => s.id === selectedSection) || null;
 
   const resetDiplomaPath = () => {
@@ -463,7 +475,7 @@ export const GradesPage = () => {
                 'الشعبة', dipSec, v => setDipSec(v),
                 sections.map(s => ({
                   value: String(s.id),
-                  label: `${s.name || 'شعبة'} — ${s.instructor?.name || '-'} ${s.startTime ? `(${s.startTime}-${s.endTime})` : ''} (${s._count?.students || 0} طالب)`
+                  label: `${s.name || 'شعبة'} — ${s.instructor?.name || '-'} ${secScheduleLabel(s) ? `(${secScheduleLabel(s)})` : ''} (${s._count?.students || 0} طالب)`
                 })),
                 !dipCrs || sections.length === 0
               )}
@@ -502,7 +514,7 @@ export const GradesPage = () => {
                 'الشعبة', crsSec, v => setCrsSec(v),
                 sections.map(s => ({
                   value: String(s.id),
-                  label: `${s.name || 'شعبة'} — ${s.instructor?.name || '-'} ${s.startTime ? `(${s.startTime}-${s.endTime})` : ''} (${s._count?.students || 0} طالب)`
+                  label: `${s.name || 'شعبة'} — ${s.instructor?.name || '-'} ${secScheduleLabel(s) ? `(${secScheduleLabel(s)})` : ''} (${s._count?.students || 0} طالب)`
                 })),
                 !crsCrs || sections.length === 0
               )}
