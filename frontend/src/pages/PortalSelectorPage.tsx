@@ -97,7 +97,7 @@ export const PortalSelectorPage = () => {
             className="hover-glass"
             style={{
               width: 260, padding: '32px 28px', borderRadius: 24,
-              background: 'var(--glass-bg)', backdropFilter: 'blur(24px) saturate(200%)',
+              background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)',
               border: '1px solid var(--glass-border)', cursor: 'pointer',
               transition: 'all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
               textAlign: 'center', position: 'relative', overflow: 'hidden',

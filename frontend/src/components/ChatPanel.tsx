@@ -1236,7 +1236,7 @@ export default function ChatSidebar({ open, onClose }: { open: boolean; onClose:
           }} />
           <div style={{
             position: 'absolute', bottom: 0, left: 0, right: 0,
-            background: 'var(--card-bg)', backdropFilter: 'blur(16px)',
+            background: 'var(--card-bg)', backdropFilter: 'var(--glass-blur)',
             borderTopLeftRadius: 16, borderTopRightRadius: 16,
             zIndex: 1000, boxShadow: '0 -4px 24px rgba(0,0,0,0.12)',
             maxHeight: 300, overflowY: 'auto', padding: '8px 0',

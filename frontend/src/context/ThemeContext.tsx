@@ -8,20 +8,27 @@ interface ThemeContextType {
   theme: 'dark' | 'light';
   contrast: number;
   accent: number;
+  fontScale: number;
   setTheme: (t: 'dark' | 'light') => void;
   toggleTheme: () => void;
   setContrast: (c: number) => void;
   setAccent: (a: number) => void;
+  setFontScale: (s: number) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: 'dark', contrast: 1, accent: 0,
-  setTheme: () => {}, toggleTheme: () => {}, setContrast: () => {}, setAccent: () => {}
+  theme: 'light', contrast: 1, accent: 0, fontScale: 1,
+  setTheme: () => {}, toggleTheme: () => {}, setContrast: () => {}, setAccent: () => {}, setFontScale: () => {}
 });
 
 const LS_THEME = 'ems_theme';
 const LS_CONTRAST = 'ems_contrast';
 const LS_ACCENT = 'ems_accent';
+const LS_FONT_SCALE = 'ems_font_scale';
+
+function clampFontScale(v: number) {
+  return Math.min(1.2, Math.max(0.9, v));
+}
 
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
@@ -56,6 +63,11 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     return v >= 0 && v <= 5 ? v : 5;
   });
 
+  const [fontScale, setFontScaleState] = useState<number>(() => {
+    const v = parseFloat(localStorage.getItem(lsKey(LS_FONT_SCALE)) || '1');
+    return clampFontScale(Number.isFinite(v) ? v : 1);
+  });
+
   const applyContrast = useCallback((t: 'dark' | 'light', c: number) => {
     const root = document.documentElement;
     const isDark = t === 'dark';
@@ -64,8 +76,8 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     const normalized = (c - 1) / 0.4;
 
     const text = isDark
-      ? { primary: '#e8ecf4', secondary: '#a0a8c0', muted: '#7078a0', border: 'rgba(255,255,255,0.05)' }
-      : { primary: '#1c1c2e', secondary: '#5a5a7a', muted: '#8e8ea8', border: 'rgba(0,0,0,0.05)' };
+      ? { primary: '#e8ecf4', secondary: '#b3bccf', muted: '#8b94b8', border: 'rgba(255,255,255,0.05)' }
+      : { primary: '#1c1c2e', secondary: '#4a4a68', muted: '#62627e', border: 'rgba(0,0,0,0.05)' };
 
     // Low contrast targets (c=0.8)
     const low = isDark
@@ -74,8 +86,8 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
     // High contrast targets (c=1.4)
     const high = isDark
-      ? { primary: '#ffffff', secondary: '#e8ecf4', muted: '#a0a8c0' }
-      : { primary: '#000000', secondary: '#1c1c2e', muted: '#5a5a7a' };
+      ? { primary: '#ffffff', secondary: '#e8ecf4', muted: '#b8c1dc' }
+      : { primary: '#000000', secondary: '#1c1c2e', muted: '#454560' };
 
     if (normalized === 0) {
       root.style.removeProperty('--ct-text-primary');
@@ -141,13 +153,16 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
             const t = pref.theme === 'light' ? 'light' : 'dark';
             const c = typeof pref.contrast === 'number' && pref.contrast >= 0.8 && pref.contrast <= 1.4 ? pref.contrast : 1;
             const a = typeof pref.accent === 'number' && pref.accent >= 0 && pref.accent <= 5 ? pref.accent : 5;
+            const fs = clampFontScale(typeof pref.fontScale === 'number' ? pref.fontScale : 1);
             setThemeState(t);
             setContrastState(c);
             setAccentState(a);
+            setFontScaleState(fs);
             applyStyle(t, c, a);
             localStorage.setItem(lsKey(LS_THEME), t);
             localStorage.setItem(lsKey(LS_CONTRAST), String(c));
             localStorage.setItem(lsKey(LS_ACCENT), String(a));
+            localStorage.setItem(lsKey(LS_FONT_SCALE), String(fs));
           } catch {}
         } else { applyStyle('light', 1, 5); }
       }).catch(() => applyStyle('light', 1, 5));
@@ -158,44 +173,55 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     applyStyle(theme, contrast, accent);
   }, [theme, contrast, accent, applyStyle]);
 
-  const syncToApi = useCallback((t: string, c: number, a: number) => {
+  useEffect(() => {
+    document.documentElement.style.setProperty('--font-scale', String(fontScale));
+  }, [fontScale]);
+
+  const syncToApi = useCallback((t: string, c: number, a: number, fs: number) => {
     if (!userId) return;
     fetch(API_BASE + '/api/auth/preferences', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ems_token')}` },
-      body: JSON.stringify({ preferences: JSON.stringify({ theme: t, contrast: c, accent: a }) })
+      body: JSON.stringify({ preferences: JSON.stringify({ theme: t, contrast: c, accent: a, fontScale: fs }) })
     }).catch(() => {});
   }, [userId]);
 
   const setTheme = useCallback((t: 'dark' | 'light') => {
     setThemeState(t);
     localStorage.setItem(lsKey(LS_THEME), t);
-    syncToApi(t, contrast, accent);
-  }, [userId, contrast, accent]);
+    syncToApi(t, contrast, accent, fontScale);
+  }, [userId, contrast, accent, fontScale]);
 
   const toggleTheme = useCallback(() => {
     const next = theme === 'light' ? 'dark' : 'light';
     setThemeState(next);
     localStorage.setItem(lsKey(LS_THEME), next);
-    syncToApi(next, contrast, accent);
-  }, [userId, theme, contrast, accent]);
+    syncToApi(next, contrast, accent, fontScale);
+  }, [userId, theme, contrast, accent, fontScale]);
 
   const setContrast = useCallback((c: number) => {
     const clamped = Math.max(0.8, Math.min(1.4, c));
     setContrastState(clamped);
     localStorage.setItem(lsKey(LS_CONTRAST), String(clamped));
-    syncToApi(theme, clamped, accent);
-  }, [userId, theme, accent]);
+    syncToApi(theme, clamped, accent, fontScale);
+  }, [userId, theme, accent, fontScale]);
 
   const setAccent = useCallback((a: number) => {
     const idx = Math.max(0, Math.min(5, a));
     setAccentState(idx);
     localStorage.setItem(lsKey(LS_ACCENT), String(idx));
-    syncToApi(theme, contrast, idx);
-  }, [userId, theme, contrast]);
+    syncToApi(theme, contrast, idx, fontScale);
+  }, [userId, theme, contrast, fontScale]);
+
+  const setFontScale = useCallback((s: number) => {
+    const clamped = clampFontScale(Math.round(s * 10) / 10);
+    setFontScaleState(clamped);
+    localStorage.setItem(lsKey(LS_FONT_SCALE), String(clamped));
+    syncToApi(theme, contrast, accent, clamped);
+  }, [userId, theme, contrast, accent]);
 
   return (
-    <ThemeContext.Provider value={{ theme, contrast, accent, setTheme, toggleTheme, setContrast, setAccent }}>
+    <ThemeContext.Provider value={{ theme, contrast, accent, fontScale, setTheme, toggleTheme, setContrast, setAccent, setFontScale }}>
       {children}
     </ThemeContext.Provider>
   );

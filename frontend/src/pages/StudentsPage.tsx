@@ -169,7 +169,7 @@ const PhoneInputRow = ({
           {showCodes && (
             <div style={{
               position: 'absolute', top: '110%', right: 0, zIndex: 999,
-              background: 'var(--glass-bg)', backdropFilter: 'blur(20px)',
+              background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)',
               border: '1px solid var(--glass-border)', borderRadius: 12,
               boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
               width: 260, maxHeight: 260, overflowY: 'auto',
@@ -325,7 +325,7 @@ const UniversitySelect = ({ value, onChange, ...rest }: { value: string; onChang
       {showList && filtered.length > 0 && (
         <div style={{
           position: 'absolute', top: '110%', right: 0, left: 0, zIndex: 999,
-          background: 'var(--glass-bg)', backdropFilter: 'blur(20px)',
+          background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)',
           border: '1px solid var(--glass-border)', borderRadius: 12,
           boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
           maxHeight: 240, overflowY: 'auto',

@@ -274,8 +274,8 @@ const Sidebar = ({ pinnedPages, togglePin, isPinned }: SidebarProps) => {
           <div style={{ padding: '0 12px', marginBottom: 6 }}>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'var(--input-bg)',
+              border: '1px solid var(--input-border)',
               borderRadius: 8, padding: '6px 10px',
               transition: 'border-color 0.2s',
             }}>
@@ -467,7 +467,7 @@ interface TopbarProps {
 }
 const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }: TopbarProps) => {
   const { user, logout, centerName } = useAuth();
-  const { theme, setTheme, contrast, setContrast, accent, setAccent } = useTheme();
+  const { theme, setTheme, contrast, setContrast, accent, setAccent, fontScale, setFontScale } = useTheme();
   const { unreadTotal, unreadPeople, bizzAlert, resetBizzAlert } = useChat();
   const navigate = useNavigate();
   const location = useLocation();
@@ -512,14 +512,11 @@ const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }
     navigate('/login');
   };
 
-  const dropdownBg = theme === 'dark' ? '#111827' : '#ffffff';
-  const dropdownBorder = theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
-
   return (
     <header className="topbar">
       {/* Left: center name */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{centerName}</h2>
+        <h2 className="topbar-title" style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{centerName}</h2>
       </div>
 
       {/* Center: Pinned Dock (macOS style) */}
@@ -559,6 +556,9 @@ const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
         {/* Chat widget */}
         <div onClick={() => { setChatOpen(!chatOpen); resetBizzAlert(); }}
+          role="button" tabIndex={0}
+          aria-label="الرسائل"
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setChatOpen(!chatOpen); resetBizzAlert(); } }}
           style={{
             width: 36, height: 36, borderRadius: 10, cursor: 'pointer', position: 'relative',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -606,6 +606,11 @@ const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }
               };
               setMenuOpen(prev => !prev);
             }}
+            role="button" tabIndex={0}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label="قائمة المستخدم"
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); menuOpen ? setMenuOpen(false) : setMenuOpen(true); } }}
             className={`user-trigger ${menuOpen ? 'open' : ''}`}
           >
             {user?.profileImage ? (
@@ -636,12 +641,10 @@ const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }
             position: 'fixed', top: menuPosRef.current.top,
             right: Math.max(8, Math.min(menuPosRef.current.right, window.innerWidth - 268)),
             width: 260,
-            background: dropdownBg,
-            border: `1px solid ${dropdownBorder}`,
+            background: 'var(--modal-bg)',
+            border: '1px solid var(--glass-border)',
             borderRadius: 14,
-            boxShadow: theme === 'dark'
-              ? '0 20px 60px rgba(0,0,0,0.5)'
-              : '0 20px 60px rgba(0,0,0,0.12)',
+            boxShadow: 'var(--glass-shadow-hover)',
             zIndex: 9999,
             maxHeight: 'calc(100vh - 100px)',
             overflowY: 'auto',
@@ -650,7 +653,7 @@ const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }
           >
                 <div style={{
                   padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 12,
-                  borderBottom: `1px solid ${dropdownBorder}`,
+                  borderBottom: '1px solid var(--glass-border)',
                 }}>
                   {user?.profileImage ? (
                     <img src={fileUrl(user.profileImage)} alt="" style={{
@@ -688,7 +691,31 @@ const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }
                   <Settings size={15} style={{ opacity: 0.6 }}/> الإعدادات
                 </div>
 
-                <div style={{ height: 1, background: dropdownBorder, margin: '0 14px' }}/>
+                <div style={{ height: 1, background: 'var(--glass-border)', margin: '0 14px' }}/>
+
+                {/* Font size */}
+                <div style={{ padding: '8px 18px 6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: 0.3 }}>حجم الخط</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button
+                        className="font-step-btn"
+                        onClick={() => setFontScale(fontScale - 0.1)}
+                        disabled={fontScale <= 0.9}
+                        title="تصغير الخط"
+                        aria-label="تصغير الخط"
+                      >A−</button>
+                      <span className="font-scale-value">{Math.round(fontScale * 100)}%</span>
+                      <button
+                        className="font-step-btn"
+                        onClick={() => setFontScale(fontScale + 0.1)}
+                        disabled={fontScale >= 1.2}
+                        title="تكبير الخط"
+                        aria-label="تكبير الخط"
+                      >A+</button>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Theme slider */}
                 <div style={{ padding: '12px 18px 6px' }}>
@@ -762,7 +789,7 @@ const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }
                             background: color,
                             margin: '0 auto',
                             boxShadow: accent === i
-                              ? `0 0 0 2.5px ${dropdownBg}, 0 0 0 4px ${color}`
+                              ? `0 0 0 2.5px var(--modal-bg), 0 0 0 4px ${color}`
                               : '0 1px 4px rgba(0,0,0,0.15)',
                             transition: 'box-shadow 0.2s, transform 0.15s',
                             transform: accent === i ? 'scale(1.08)' : 'scale(1)',
@@ -779,7 +806,7 @@ const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }
                   </div>
                 </div>
 
-                <div style={{ height: 1, background: dropdownBorder, margin: '0 14px' }}/>
+                <div style={{ height: 1, background: 'var(--glass-border)', margin: '0 14px' }}/>
 
                 <div onClick={handleLogout}
                   style={{

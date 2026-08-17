@@ -287,7 +287,7 @@ export const StudentPortalPage = () => {
 
       {/* ═══════ HORIZONTAL NAV BAR ═══════ */}
       <div ref={tabsRef} style={{
-        background: 'var(--glass-bg)', backdropFilter: 'blur(24px)',
+        background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)',
         borderBottom: '1px solid var(--glass-border)',
         position: 'sticky', top: 0, zIndex: 99,
       }}>

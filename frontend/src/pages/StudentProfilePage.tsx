@@ -338,7 +338,7 @@ export const StudentProfilePage = () => {
               <input type="text" className="glass-input" placeholder="ابحث بالاسم أو الهاتف..." value={searchQuery}
                 onChange={e => handleSearch(e.target.value)} />
               {showDropdown && searchResults.length > 0 && (
-                <div style={{ position: 'absolute', top: '100%', right: 0, left: 0, zIndex: 100, background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 10, maxHeight: 220, overflowY: 'auto', backdropFilter: 'blur(20px)', marginTop: 4 }}>
+                <div style={{ position: 'absolute', top: '100%', right: 0, left: 0, zIndex: 100, background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 10, maxHeight: 220, overflowY: 'auto', backdropFilter: 'var(--glass-blur)', marginTop: 4 }}>
                   {searchResults.map(s => (
                     <div key={s.id} onClick={() => selectStudent(s)}
                       style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', gap: 10 }}>

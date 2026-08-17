@@ -387,7 +387,7 @@ const DesktopWindow = React.memo(({ win, onFocus, onMinimize, onMaximize, onClos
         display: 'flex', flexDirection: 'column',
         borderRadius: 10, overflow: 'hidden',
         background: 'rgba(18, 22, 36, 0.96)',
-        backdropFilter: 'blur(32px) saturate(180%)',
+        backdropFilter: 'blur(8px)',
         border: isTop ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(255,255,255,0.04)',
         boxShadow: isTop
           ? '0 16px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03)'
@@ -480,7 +480,7 @@ const StartMenu: React.FC<StartMenuProps> = ({ open, onClose, onLaunchApp }) => 
         position: 'fixed', bottom: 48, right: '50%', transform: 'translateX(50%)',
         width: 400, maxHeight: 480,
         background: 'rgba(15, 20, 35, 0.97)',
-        backdropFilter: 'blur(40px) saturate(200%)',
+        backdropFilter: 'blur(10px)',
         border: '1px solid rgba(255,255,255,0.08)',
         borderRadius: 14,
         boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
@@ -586,7 +586,7 @@ const Taskbar: React.FC<TaskbarProps> = ({ windows, clock, onStartClick, onAppCl
       height: 44, display: 'flex', alignItems: 'center', gap: 2,
       padding: '0 10px', flexShrink: 0,
       background: 'rgba(12, 16, 28, 0.92)',
-      backdropFilter: 'blur(24px) saturate(200%)',
+      backdropFilter: 'blur(8px)',
       borderTop: '1px solid rgba(255,255,255,0.05)',
       zIndex: 100,
       position: 'relative',

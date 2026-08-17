@@ -104,7 +104,7 @@ const HAWALA_OPTS = [
 ];
 
 const sx = { position: 'fixed' as const, inset: 0, zIndex: 2147483647, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)', display: 'flex' as const, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 20 };
-const mbox: React.CSSProperties = { background: 'var(--modal-bg)', backdropFilter: 'blur(32px) saturate(180%)', WebkitBackdropFilter: 'blur(32px) saturate(180%)', borderRadius: 22, border: '1px solid var(--glass-border)', boxShadow: '0 32px 80px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.05)', direction: 'rtl' };
+const mbox: React.CSSProperties = { background: 'var(--modal-bg)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', borderRadius: 22, border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow-hover)', direction: 'rtl' };
 const gl: React.CSSProperties = { display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 };
 const rq: React.CSSProperties = { color: 'var(--danger)', marginRight: 2 };
 const dd: React.CSSProperties = { height: 1, background: 'var(--glass-border)', border: 'none', margin: '12px 0' };

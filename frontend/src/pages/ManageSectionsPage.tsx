@@ -466,7 +466,7 @@ export const ManageSectionsPage = () => {
             width: '100%', maxWidth: 760,
             margin: '0 20px',
             background: 'var(--modal-bg)',
-            backdropFilter: 'blur(32px) saturate(200%)',
+            backdropFilter: 'var(--glass-blur)',
             border: '1px solid var(--glass-border)',
             borderRadius: 24,
             boxShadow: '0 32px 80px rgba(0,0,0,0.4)',
