@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Settings, Save, Globe, Image, Monitor, Smartphone, Palette, Upload, X, Activity, RefreshCw, Filter, Trash2, ChevronRight } from 'lucide-react';
+import { Settings, Save, Globe, Image, Monitor, Smartphone, Palette, Upload, X, Activity, RefreshCw, Filter, Trash2, ChevronRight, Languages, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { PermissionGuard } from '../components/PermissionGuard';
 import { useApi, useAuth, fileUrl } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { formatDate } from '../utils/dateFormat';
+import { printHeaderHTML } from '../utils/print';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -30,6 +31,54 @@ const PORTALS = [
   { key: 'STUDENT', label: 'بوابة الطلاب', icon: Smartphone, gradient: 'linear-gradient(135deg, #f59e0b, #ef4444)' },
 ];
 
+// ==========================================
+// Name field sanitizers — Arabic name accepts only Arabic, English only Latin
+// ==========================================
+const sanitizeArabic = (v: string) => v.replace(/[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF0-9\s.,،\-()&'#/!?]/g, '');
+const sanitizeEnglish = (v: string) => v.replace(/[^A-Za-z0-9\s.,\-()&'#/!?]/g, '');
+
+const LANG_BADGE: Record<string, React.CSSProperties> = {
+  ar: { background: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.6rem', fontWeight: 700, padding: '1px 7px', borderRadius: 20, marginRight: 6, whiteSpace: 'nowrap' },
+  en: { background: 'var(--info-bg, #e0f2fe)', color: '#0284c7', fontSize: '0.6rem', fontWeight: 700, padding: '1px 7px', borderRadius: 20, marginLeft: 6, whiteSpace: 'nowrap' },
+};
+
+interface LangFieldProps {
+  dir: 'rtl' | 'ltr';
+  lang: 'ar' | 'en';
+  label: string;
+  hint: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  rejected: boolean;
+}
+
+const LangNameField = ({ dir, lang, label, hint, value, onChange, placeholder, rejected }: LangFieldProps) => (
+  <div className="form-group" style={{ minWidth: 0 }}>
+    <label className="form-label" style={{ display: 'flex', alignItems: 'center' }}>
+      {label}
+      <span style={LANG_BADGE[lang]}>{lang === 'ar' ? 'عربي' : 'EN'}</span>
+    </label>
+    <div style={{ position: 'relative' }}>
+      <input
+        dir={dir}
+        className={`glass-input ${rejected ? 'input-error' : value ? 'input-valid' : ''}`}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{ fontSize: '1rem', fontWeight: 600, paddingLeft: lang === 'en' ? 32 : 12, paddingRight: lang === 'ar' ? 32 : 12, width: '100%' }}
+      />
+      {value.length > 0 && (
+        <span style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', [lang === 'ar' ? 'right' : 'left']: 9, display: 'flex', alignItems: 'center', gap: 3, color: rejected ? 'var(--danger)' : 'var(--success)', fontSize: '0.62rem', background: rejected ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)', padding: '2px 6px', borderRadius: 12, pointerEvents: 'none' }}>
+          {rejected ? <AlertTriangle size={10} /> : <CheckCircle2 size={10} />}
+          {rejected ? 'أحرف غير مسموحة' : lang === 'ar' ? 'عربية فقط' : 'English only'}
+        </span>
+      )}
+    </div>
+    <small style={{ fontSize: '0.62rem', color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>{hint}</small>
+  </div>
+);
+
 export const AdminSettingsPage = () => {
   const { apiFetch } = useApi();
   const { updateCenter, hasPermission } = useAuth();
@@ -43,11 +92,13 @@ export const AdminSettingsPage = () => {
 
   // General settings
   const [settings, setSettings] = useState({
-    centerName: '', centerLogo: '', centerPhone: '', centerEmail: '',
+    centerName: '', centerNameEn: '', centerLogo: '', centerPhone: '', centerEmail: '',
     currency: 'JOD', timezone: 'Asia/Amman', defaultCommissionRate: 5,
     maxInstallments: 12, overdueGraceDays: 3,
     notifyOnOverdue: 'true', notifyOnRegistration: 'true', backupEnabled: 'false',
   });
+  const [nameRejected, setNameRejected] = useState({ ar: false, en: false });
+  const [nameFiltered, setNameFiltered] = useState({ ar: false, en: false });
 
   // Backgrounds
   const [bgPortal, setBgPortal] = useState('ADMIN');
@@ -80,19 +131,31 @@ export const AdminSettingsPage = () => {
   useEffect(() => { if (tab === 'activity') fetchLogs(); }, [tab, filterAction, filterEntity]);
 
   // ===== General Settings =====
+  const handleNameChange = (field: 'ar' | 'en') => (raw: string) => {
+    const sanitized = field === 'ar' ? sanitizeArabic(raw) : sanitizeEnglish(raw);
+    const rejected = sanitized !== raw;
+    if (rejected) {
+      setNameFiltered(prev => ({ ...prev, [field]: true }));
+      setTimeout(() => setNameFiltered(prev => ({ ...prev, [field]: false })), 2200);
+    }
+    setNameRejected(prev => ({ ...prev, [field]: rejected }));
+    setSettings(prev => ({ ...prev, [field === 'ar' ? 'centerName' : 'centerNameEn']: sanitized }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       const data = await apiFetch('/settings', { method: 'PUT', body: JSON.stringify(settings) });
       updateCenter(
         data?.centerName || settings.centerName,
+        data?.centerNameEn || settings.centerNameEn,
         data?.centerLogo || settings.centerLogo
       );
       toast.success('تم الحفظ', 'تم حفظ الإعدادات بنجاح');
     } catch (e: any) {
       console.error('[handleSave] apiFetch failed:', e?.message);
       // Fallback: save name directly via localStorage + context even if backend fails
-      updateCenter(settings.centerName, settings.centerLogo);
+      updateCenter(settings.centerName, settings.centerNameEn, settings.centerLogo);
       toast.error('فشل الحفظ', e?.message || 'خطأ غير معروف');
     } finally { setSaving(false); }
   };
@@ -240,22 +303,38 @@ export const AdminSettingsPage = () => {
                   </div>
                   <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
                 </div>
-                <div style={{ flex: 1, minWidth: 250 }}>
-                  <div className="form-group">
-                    <label className="form-label">اسم المركز</label>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                      <input className="glass-input" value={settings.centerName}
-                        onChange={e => setSettings({ ...settings, centerName: e.target.value })}
-                        placeholder="المركز التعليمي الحديث" style={{ fontSize: '1rem', fontWeight: 600, flex: 1 }} />
-                      {hasPermission('admin.settings.edit') && (
-                        <button className="glass-btn" onClick={handleSave} disabled={saving}
-                          style={{ height: 44, minWidth: 80, justifyContent: 'center', whiteSpace: 'nowrap' }}>
-                          <Save size={14} /> {saving ? '...' : 'حفظ'}
-                        </button>
-                      )}
-                    </div>
+                <div style={{ flex: 1, minWidth: 280 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                    <LangNameField
+                      dir="rtl" lang="ar"
+                      label="اسم المركز" hint="يُقبل الحروف العربية فقط — أي حرف إنجليزي يُحذف تلقائياً"
+                      value={settings.centerName} placeholder="مثال: المركز التعليمي الحديث"
+                      onChange={handleNameChange('ar')} rejected={nameRejected.ar}
+                    />
+                    <LangNameField
+                      dir="ltr" lang="en"
+                      label="Center Name" hint="English letters only — Arabic characters are removed automatically"
+                      value={settings.centerNameEn} placeholder="e.g. Modern Education Center"
+                      onChange={handleNameChange('en')} rejected={nameRejected.en}
+                    />
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+                  <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Languages size={11} /> معاينة ترويسة المستندات:
+                    </span>
+                    {nameFiltered.ar || nameFiltered.en ? (
+                      <span style={{ fontSize: '0.62rem', color: 'var(--warning)', fontWeight: 600 }}>تم تجاهل أحرف غير مسموحة</span>
+                    ) : null}
+                  </div>
+                  <div style={{ marginTop: 8, background: '#fff', border: '1px dashed #d1d5db', borderRadius: 10, padding: '12px 16px', overflow: 'hidden' }}
+                    dangerouslySetInnerHTML={{
+                      __html: printHeaderHTML({
+                        name: settings.centerName,
+                        nameEn: settings.centerNameEn,
+                        logo: settings.centerLogo,
+                      })
+                    }} />
+                  <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div className="form-group">
                       <label className="form-label">هاتف التواصل</label>
                       <input className="glass-input" value={settings.centerPhone} onChange={e => setSettings({ ...settings, centerPhone: e.target.value })} />

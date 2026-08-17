@@ -8,6 +8,7 @@ import { useApi, useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { PermissionGuard } from '../components/PermissionGuard';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { printHeaderHTML } from '../utils/print';
 
 const INSTRUCTOR_TABS = [
   { key: 'schedule', label: 'جدولي' },
@@ -26,15 +27,12 @@ function genPassword(): string {
   return p;
 }
 
-function printReceipt(name: string, username: string, password: string) {
+function printReceipt(name: string, username: string, password: string, center: { name?: string; nameEn?: string; logo?: string } = {}) {
   const w = window.open('', '_blank', 'width=400,height=500');
   if (!w) return;
   w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>حساب محاضر</title><style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Cairo', 'Segoe UI', sans-serif; background: #fff; padding: 40px 30px; color: #222; }
-    .logo { text-align: center; margin-bottom: 20px; }
-    .logo h2 { font-size: 1.6rem; color: #6366f1; }
-    .logo p { font-size: 0.85rem; color: #666; }
     h1 { text-align: center; font-size: 1.2rem; margin: 16px 0; color: #333; border-bottom: 2px solid #6366f1; padding-bottom: 12px; }
     .card { border: 2px dashed #6366f1; border-radius: 16px; padding: 28px 24px; margin: 24px 0; background: #f5f3ff; }
     .row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e8e8e8; font-size: 1rem; }
@@ -45,8 +43,8 @@ function printReceipt(name: string, username: string, password: string) {
     .footer { text-align: center; margin-top: 32px; padding-top: 16px; border-top: 1px solid #e0e0e0; font-size: 0.75rem; color: #aaa; }
     @media print { body { padding: 20px; } .no-print { display: none; } }
   </style></head><body>
-    <div class="logo"><h2>📚 بيانات حساب المحاضر</h2><p>بوابة المحاضر الإلكترونية</p></div>
-    <h1>${name}</h1>
+    ${printHeaderHTML(center)}
+    <h1>📚 بيانات حساب المحاضر — ${name}</h1>
     <div class="card">
       <div class="row"><span class="label">اسم المستخدم</span><span class="value" dir="ltr">${username}</span></div>
       <div class="row"><span class="label">كلمة المرور</span><span class="value" dir="ltr">${password}</span></div>
@@ -60,7 +58,7 @@ function printReceipt(name: string, username: string, password: string) {
 
 export const InstructorAccountsPage = () => {
   const { apiFetch } = useApi();
-  const { hasPermission } = useAuth();
+  const { hasPermission, centerName, centerNameEn, centerLogo } = useAuth();
   const toast = useToast();
 
   const [instructors, setInstructors] = useState<any[]>([]);
@@ -158,7 +156,7 @@ export const InstructorAccountsPage = () => {
         toast.success('تم التحديث', 'تم تحديث إعدادات البوابة');
 
         if (password) {
-          printReceipt(selectedInstructor.name, selectedInstructor.id, password);
+          printReceipt(selectedInstructor.name, selectedInstructor.id, password, { name: centerName, nameEn: centerNameEn, logo: centerLogo });
         }
       } else {
         const result = await apiFetch('/auth/users', {
@@ -176,7 +174,7 @@ export const InstructorAccountsPage = () => {
           })
         });
         toast.success('تم الإنشاء', `حساب المحاضر ${selectedInstructor.name}`);
-        printReceipt(selectedInstructor.name, autoUsername, password);
+        printReceipt(selectedInstructor.name, autoUsername, password, { name: centerName, nameEn: centerNameEn, logo: centerLogo });
         setUsers(prev => [...prev, {
           id: result.id,
           username: autoUsername,

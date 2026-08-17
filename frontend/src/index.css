@@ -228,6 +228,9 @@ body::before {
 }
 .glass-input::placeholder { color: var(--text-muted); }
 .glass-input:hover:not(:disabled):not(:focus) { border-color: var(--text-muted); }
+.glass-input.input-error { border-color: var(--danger); background: rgba(239, 68, 68, 0.06); }
+.glass-input.input-error:focus { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12); }
+.glass-input.input-valid { border-color: rgba(16, 185, 129, 0.65); }
 .glass-input:focus {
   border-color: var(--input-focus);
   background: var(--card-bg);

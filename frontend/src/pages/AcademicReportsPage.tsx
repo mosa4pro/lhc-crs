@@ -8,6 +8,7 @@ import { useToast } from '../components/Toast';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
+import { printHeaderHTML } from '../utils/print';
 
 interface FilterDef {
   field: string; label: string; type: string; placeholder?: string;
@@ -21,7 +22,7 @@ const getCellValue = (row: any, col: any) =>
 
 export const AcademicReportsPage = () => {
   const { apiFetch } = useApi();
-  const { centerName, centerLogo } = useAuth();
+  const { centerName, centerNameEn, centerLogo } = useAuth();
   const toast = useToast();
 
   const [stats, setStats] = useState<any>(null);
@@ -146,11 +147,13 @@ export const AcademicReportsPage = () => {
     try {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
+      const centerW = pageWidth / 3;
       if (centerLogo) {
-        try { doc.addImage(centerLogo, 'PNG', 10, 8, 30, 15); } catch {}
+        try { doc.addImage(centerLogo, 'PNG', centerW + centerW / 2 - 15, 6, 30, 15); } catch {}
       }
-      doc.setFontSize(14);
-      doc.text(centerName || 'المركز التعليمي الحديث', pageWidth - 10, 15, { align: 'left' });
+      doc.setFontSize(13);
+      doc.text(centerName || 'المركز التعليمي الحديث', centerW, 15, { align: 'right' });
+      doc.text(centerNameEn || '', pageWidth - centerW, 15, { align: 'left' });
       doc.setFontSize(8);
       doc.text(`تاريخ التقرير: ${new Date().toLocaleDateString('ar-JO')}`, pageWidth - 10, 22, { align: 'left' });
       doc.setFontSize(12);
@@ -184,11 +187,7 @@ export const AcademicReportsPage = () => {
     setTimeout(() => {
       const win = window.open('', '_blank');
       if (!win) { toast.error('الرجاء السماح بالنوافذ المنبثقة للطباعة'); return; }
-      const headerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:2px solid #2980b9;padding-bottom:12px">
-          <div style="text-align:left">${centerLogo ? `<img src="${centerLogo}" style="max-height:50px" />` : ''}</div>
-          <div style="text-align:right;font-size:16px;font-weight:800;color:#2980b9">${centerName || 'المركز التعليمي الحديث'}</div>
-        </div>
+      const headerHTML = `${printHeaderHTML({ name: centerName, nameEn: centerNameEn, logo: centerLogo })}
         <div style="text-align:center;margin-bottom:16px;font-size:14px;font-weight:600">${selectedTemplate?.name || 'تقرير'}</div>
         <div style="text-align:center;margin-bottom:16px;font-size:11px;color:#888">تاريخ الطباعة: ${new Date().toLocaleDateString('ar-JO')}</div>
       `;
@@ -433,14 +432,17 @@ export const AcademicReportsPage = () => {
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)', minHeight: '60vh',
               }}>
                 <div style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  display: 'flex', alignItems: 'center', gap: 14,
                   marginBottom: 20, borderBottom: '2px solid #2980b9', paddingBottom: 12,
                 }}>
-                  <div style={{ textAlign: 'left' }}>
+                  <div style={{ flex: 1, textAlign: 'right', fontSize: 16, fontWeight: 800, color: '#2980b9' }}>
+                    {centerName || 'المركز التعليمي الحديث'}
+                  </div>
+                  <div style={{ flexShrink: 0 }}>
                     {centerLogo && <img src={centerLogo} alt="الشعار" style={{ maxHeight: 50 }} />}
                   </div>
-                  <div style={{ textAlign: 'right', fontSize: 16, fontWeight: 800, color: '#2980b9' }}>
-                    {centerName || 'المركز التعليمي الحديث'}
+                  <div style={{ flex: 1, textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280' }}>
+                    {centerNameEn}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 14, fontWeight: 600 }}>

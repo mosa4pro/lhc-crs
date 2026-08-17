@@ -9,6 +9,7 @@ import { useToast } from '../components/Toast';
 import { PAYMENT_METHODS, BANK_OPTIONS } from '../utils/constants';
 import { DeepSearchModal } from '../components/DeepSearchModal';
 import { DateField } from '../components/DateField';
+import { printHeaderHTML } from '../utils/print';
 
 
 interface FinTx {
@@ -108,7 +109,7 @@ const dd: React.CSSProperties = { height: 1, background: 'var(--glass-border)', 
 
 export const FinReceiptsPage = () => {
   const { apiFetch } = useApi();
-  const { hasPermission } = useAuth();
+  const { hasPermission, centerName, centerNameEn, centerLogo } = useAuth();
   const toast = useToast();
 
   const [summary, setSummary] = useState<FinSummary | null>(null);
@@ -388,8 +389,9 @@ export const FinReceiptsPage = () => {
   @media print{body{padding:24px}button{display:none}}
 </style></head><body>
 <button onclick="window.print()">🖨️ طباعة السند</button>
+${printHeaderHTML({ name: centerName, nameEn: centerNameEn, logo: centerLogo })}
 <h1>سند قبض</h1>
-<div class="sub">مركز LHC للتدريب — ${formatDate(new Date())}</div>
+<div class="sub">${formatDate(new Date())}</div>
 <div class="rc">
 <div class="r"><span class="l">رقم السند</span><span class="v">${tx.receiptNumber}</span></div>
 <div class="r"><span class="l">التاريخ</span><span class="v">${formatDate(tx.date)}</span></div>
@@ -400,7 +402,7 @@ ${tx.referenceNumber ? `<div class="r"><span class="l">رقم المرجع</span
 ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v">${tx.notes}</span></div>` : ''}
 <div class="tt">المبلغ: ${tx.amount.toFixed(2)} دينار أردني</div>
 </div>
-<div class="ft">شكراً لثقتكم — LHC للتدريب</div>
+<div class="ft">شكراً لثقتكم — ${centerName || 'مركزنا التعليمي'}</div>
 <script>setTimeout(()=>{window.print()},600)</script>
 </body></html>`);
     w.document.close();

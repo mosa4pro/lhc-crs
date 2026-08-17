@@ -10,6 +10,7 @@ import { useToast } from '../components/Toast';
 import { DeepSearchModal } from '../components/DeepSearchModal';
 import { DateField } from '../components/DateField';
 import { formatDate } from '../utils/dateFormat';
+import { printHeaderHTML } from '../utils/print';
 import { toNumber } from '../utils/arabicNumbers';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
@@ -47,7 +48,7 @@ const rq: React.CSSProperties = { color: 'var(--danger)', marginRight: 2 };
 
 export const FinInstallmentsPage = () => {
   const { apiFetch } = useApi();
-  const { hasPermission } = useAuth();
+  const { hasPermission, centerName, centerNameEn, centerLogo } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -621,8 +622,9 @@ button:hover{background:#1a5632;color:#fff}
 @media print{body{padding:24px}button{display:none}}
 </style></head><body>
 <button onclick="window.print()">🖨️ طباعة ${isPayment ? 'سند الصرف' : 'السند'}</button>
+${printHeaderHTML({ name: centerName, nameEn: centerNameEn, logo: centerLogo })}
 <h1>${isPayment ? 'سند صرف' : 'سند قبض'}</h1>
-<div class="sub">مركز LHC للتدريب — ${formatDate(new Date())}</div>
+<div class="sub">${formatDate(new Date())}</div>
 <div class="rc">
 <div class="r"><span class="l">رقم السند</span><span class="v">${tx.receiptNumber}</span></div>
 <div class="r"><span class="l">التاريخ</span><span class="v">${formatDate(tx.date)}</span></div>
@@ -633,7 +635,7 @@ ${tx.referenceNumber ? `<div class="r"><span class="l">رقم المرجع</span
 ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v">${tx.notes}</span></div>` : ''}
 <div class="tt">المبلغ: ${tx.amount.toFixed(2)} دينار أردني</div>
 </div>
-<div class="ft">شكراً لثقتكم — LHC للتدريب</div>
+<div class="ft">شكراً لثقتكم — ${centerName || 'مركزنا التعليمي'}</div>
 </body></html>`); w.document.close();
   };
 

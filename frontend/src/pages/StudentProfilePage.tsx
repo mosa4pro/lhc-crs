@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, User, FileText, Calendar, CreditCard, GraduationCap, Printer, Filter, Image, MessageCircle, ArrowLeftRight, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, User, FileText, Calendar, CreditCard, GraduationCap, Printer, Filter, Image, MessageCircle, ArrowLeftRight, Wallet, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useApi, useAuth, fileUrl } from '../context/AuthContext';
 import { DeepSearchModal } from '../components/DeepSearchModal';
 import { LearningTypeBadge, learningTypeLabel, modalityLabel } from '../components/LearningTypeBadge';
@@ -7,6 +7,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { useChat } from '../context/ChatContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { formatDate } from '../utils/dateFormat';
+import { printHeaderHTML } from '../utils/print';
 
 const DAY_ABBR: Record<string, string> = {
   SAT: 'السبت', SUN: 'الأحد', MON: 'الإثنين', TUE: 'الثلاثاء',
@@ -37,7 +38,7 @@ const formatDays = (days: any) => {
 
 export const StudentProfilePage = () => {
   const { apiFetch } = useApi();
-  const { centerName, centerLogo } = useAuth();
+  const { centerName, centerNameEn, centerLogo } = useAuth();
   const { setPendingShareStudent, setOpen } = useChat();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -252,24 +253,53 @@ export const StudentProfilePage = () => {
       .badge.success { background: #d4edda; color: #155724; }
       .badge.danger { background: #f8d7da; color: #721c24; }
       .badge.warning { background: #fff3cd; color: #856404; }
-      .print-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding: 16px; border: 1px solid #ddd; border-radius: 8px; }
-      .print-header .logo { width: 80px; height: 80px; object-fit: contain; }
-      .print-header .center-info { text-align: left; }
-      .print-header .center-info h1 { margin: 0; font-size: 16px; color: #333; }
-      .print-header .center-info p { margin: 4px 0 0; font-size: 11px; color: #888; }
       .header-card { text-align: center; margin-bottom: 16px; padding: 16px; border: 1px solid #ddd; border-radius: 8px; }
       .header-card h2 { margin: 0 0 4px 0; }
       .header-card p { margin: 0; color: #666; }
     </style></head><body>
-    <div class="print-header">
-      <div>${centerLogo ? `<img class="logo" src="${fileUrl(centerLogo)}" alt="Logo" />` : '<div style="width:80px"/>'}</div>
-      <div class="center-info">
-        <h1>${centerName || 'المركز التعليمي الحديث'}</h1>
-        <p>ملف الطالب — ${s?.fullNameAr || ''}</p>
-      </div>
-    </div>
+    ${printHeaderHTML({ name: centerName, nameEn: centerNameEn, logo: centerLogo ? fileUrl(centerLogo) : '' })}
     <div class="header-card"><h2>${s?.fullNameAr || ''}</h2><p>0${s ? getPhone(s.phones) : ''}</p></div>${content}</body></html>`);
     w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
+  };
+
+  const handlePrintCard = () => {
+    const s = selectedStudent;
+    if (!s) return;
+    const secNames = secList.length > 0 ? secList.map((x: any) => x.course?.name || x.diploma?.name).join('، ') : '';
+    const w = window.open('', '_blank', 'width=400,height=620');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>بطاقة الطالب</title><style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Cairo', 'Segoe UI', sans-serif; background: #f3f4f6; padding: 24px; color: #222; }
+      .idcard { max-width: 420px; margin: 0 auto; background: #fff; border-radius: 18px; padding: 20px 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid #e5e7eb; }
+      .avatar { width: 84px; height: 84px; margin: 0 auto 10px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 2rem; font-weight: 700; }
+      .sname { text-align: center; font-size: 1.15rem; font-weight: 700; }
+      .sename { text-align: center; font-size: 0.78rem; color: #6b7280; direction: ltr; }
+      .badge { display: inline-block; margin-top: 6px; padding: 2px 12px; border-radius: 20px; font-size: 0.68rem; font-weight: 600; background: #d1fae5; color: #065f46; }
+      .grid { margin-top: 16px; border-top: 1px dashed #e5e7eb; padding-top: 12px; display: grid; grid-template-columns: 1fr; gap: 8px; }
+      .row { display: flex; justify-content: space-between; font-size: 0.82rem; }
+      .row .l { color: #6b7280; }
+      .row .v { font-weight: 600; }
+      .foot { margin-top: 16px; text-align: center; font-size: 0.72rem; color: #9ca3af; }
+      button { padding: 10px 24px; margin-bottom: 20px; cursor: pointer; font-size: 14px; border: 1px solid #111827; background: #fff; border-radius: 8px; }
+      @media print { body { background: #fff; padding: 12px; } .idcard { box-shadow: none; } button { display: none; } }
+    </style></head><body>
+    <button onclick="window.print()">🖨️ طباعة البطاقة</button>
+    ${printHeaderHTML({ name: centerName, nameEn: centerNameEn, logo: centerLogo ? fileUrl(centerLogo) : '' })}
+    <div class="idcard">
+      <div class="avatar">${s.fullNameAr?.trim().charAt(0) || 'ط'}</div>
+      <div class="sname">${s.fullNameAr || ''}</div>
+      ${s.fullNameEn ? `<div class="sename">${s.fullNameEn}</div>` : ''}
+      <div style="text-align:center"><span class="badge">${s.status === 'ACTIVE' ? 'طالب مستمر' : s.status}</span></div>
+      <div class="grid">
+        <div class="row"><span class="l">رقم الطالب</span><span class="v">${s.id}</span></div>
+        <div class="row"><span class="l">رقم الهاتف</span><span class="v">0${getPhone(s.phones)}</span></div>
+        ${secNames ? `<div class="row"><span class="l">المسجل في</span><span class="v">${secNames}</span></div>` : ''}
+      </div>
+    </div>
+    <div class="foot">${formatDate(new Date())}</div>
+    </body></html>`);
+    w.document.close(); w.focus(); setTimeout(() => w.print(), 400);
   };
 
   const tdStyle = { padding: '7px 10px', border: '1px solid var(--glass-border)', textAlign: 'center' as const, fontSize: '0.8rem' };
@@ -670,19 +700,50 @@ export const StudentProfilePage = () => {
         {showCard && selectedStudent && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onClick={() => setShowCard(false)}>
-            <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 24, width: 340, color: '#333', textAlign: 'center' }}>
-              <div style={{ fontSize: '2rem', marginBottom: 8 }}>🎓</div>
-              <h2 style={{ margin: '0 0 4px', fontSize: '1.1rem' }}>{selectedStudent.fullNameAr}</h2>
-              <p style={{ margin: '0 0 12px', color: '#666', fontSize: '0.85rem' }}>0{getPhone(selectedStudent.phones)}</p>
-              <hr style={{ border: 'none', borderTop: '1px solid #eee', margin: '8px 0' }} />
-              <div style={{ textAlign: 'right', fontSize: '0.82rem', lineHeight: 2 }}>
-                <div><strong>الحالة:</strong> {selectedStudent.status === 'ACTIVE' ? 'مستمر' : selectedStudent.status}</div>
-                {selectedStudent.email && <div><strong>البريد:</strong> {selectedStudent.email}</div>}
-                {selectedStudent.birthDate && <div><strong>تاريخ الميلاد:</strong> {formatDate(selectedStudent.birthDate)}</div>}
-                {selectedStudent.address && <div><strong>العنوان:</strong> {selectedStudent.address}</div>}
-                {secList.length > 0 && <div><strong>المسجل في:</strong> {secList.map((s: any) => s.course?.name || s.diploma?.name).join('، ')}</div>}
+            <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 20, width: 380, color: '#333', textAlign: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Image size={16} color="#6366f1" />
+                  <strong style={{ fontSize: '0.95rem' }}>بطاقة الطالب</strong>
+                </div>
+                <button onClick={() => setShowCard(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9ca3af', display: 'flex', padding: 4 }}>
+                  <X size={16} />
+                </button>
               </div>
-              <button className="glass-btn" style={{ marginTop: 16, width: '100%' }} onClick={() => setShowCard(false)}>إغلاق</button>
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid #e5e7eb' }}>
+                  <div style={{ flex: 1, textAlign: 'right', direction: 'rtl' }}>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>{centerName || 'المركز التعليمي'}</div>
+                  </div>
+                  <div style={{ width: 46, height: 46, borderRadius: 8, background: centerLogo ? `url(${fileUrl(centerLogo)}) center/contain no-repeat` : 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {!centerLogo && <GraduationCap size={20} style={{ color: '#fff', opacity: 0.7 }} />}
+                  </div>
+                  <div style={{ flex: 1, textAlign: 'left', direction: 'ltr' }}>
+                    <div style={{ fontSize: '0.6rem', fontWeight: 600, color: '#374151' }}>{centerNameEn}</div>
+                  </div>
+                </div>
+                <div style={{ padding: '16px 14px' }}>
+                  <div style={{ width: 70, height: 70, margin: '0 auto 10px', borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '1.6rem', fontWeight: 700 }}>
+                    {selectedStudent.fullNameAr?.trim().charAt(0) || 'ط'}
+                  </div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>{selectedStudent.fullNameAr}</div>
+                  {selectedStudent.fullNameEn && <div style={{ fontSize: '0.72rem', color: '#6b7280', direction: 'ltr' }}>{selectedStudent.fullNameEn}</div>}
+                  <span style={{ display: 'inline-block', marginTop: 6, padding: '2px 12px', borderRadius: 20, fontSize: '0.66rem', fontWeight: 600, background: '#d1fae5', color: '#065f46' }}>
+                    {selectedStudent.status === 'ACTIVE' ? 'طالب مستمر' : selectedStudent.status}
+                  </span>
+                  <div style={{ marginTop: 14, borderTop: '1px dashed #e5e7eb', paddingTop: 10, textAlign: 'right', fontSize: '0.78rem', lineHeight: 2.1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#6b7280' }}>رقم الطالب</span><strong>{selectedStudent.id}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#6b7280' }}>رقم الهاتف</span><strong>0{getPhone(selectedStudent.phones)}</strong></div>
+                    {secList.length > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><span style={{ color: '#6b7280' }}>المسجل في</span><strong style={{ textAlign: 'left' }}>{secList.map((s: any) => s.course?.name || s.diploma?.name).join('، ')}</strong></div>}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                <button className="glass-btn" style={{ flex: 1, justifyContent: 'center', fontSize: '0.8rem' }} onClick={handlePrintCard}>
+                  <Printer size={13} /> طباعة البطاقة
+                </button>
+                <button className="glass-btn secondary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.8rem' }} onClick={() => setShowCard(false)}>إغلاق</button>
+              </div>
             </div>
           </div>
         )}

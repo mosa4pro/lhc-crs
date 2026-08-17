@@ -234,6 +234,7 @@ interface AuthState {
   token: string | null;
   isLoading: boolean;
   centerName: string;
+  centerNameEn: string;
   centerLogo: string;
   settingsLoaded: boolean;
   activePortal: string | null;
@@ -243,7 +244,7 @@ interface AuthContextType extends AuthState {
   login: (username: string, password: string, portal?: string) => Promise<any>;
   logout: () => Promise<void>;
   hasPermission: (perm: string) => boolean;
-  updateCenter: (name: string, logo: string) => Promise<void>;
+  updateCenter: (name: string, nameEn: string, logo: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -255,6 +256,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isLoading: true,
     settingsLoaded: false,
     centerName: localStorage.getItem('centerName') || '',
+    centerNameEn: localStorage.getItem('centerNameEn') || '',
     centerLogo: localStorage.getItem('centerLogo') || '',
     activePortal: localStorage.getItem('ems_active_portal') || null,
   });
@@ -301,6 +303,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               setState(prev => ({ ...prev, centerName: data.centerName }));
               document.title = data.centerName;
             }
+          if (data.centerNameEn) {
+            try { localStorage.setItem('centerNameEn', data.centerNameEn); } catch {}
+            setState(prev => ({ ...prev, centerNameEn: data.centerNameEn }));
+          }
           if (data.centerLogo) {
             const resolved = fileUrl(data.centerLogo);
             try { localStorage.setItem('centerLogo', resolved); } catch {}
@@ -333,9 +339,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Sync localStorage settings to backend (for incognito / fresh browsers)
     const localName = localStorage.getItem('centerName');
+    const localNameEn = localStorage.getItem('centerNameEn');
     const localLogo = localStorage.getItem('centerLogo');
     const body: Record<string, string> = {};
     if (localName) body.centerName = localName ?? '';
+    if (localNameEn) body.centerNameEn = localNameEn ?? '';
     if (localLogo) body.centerLogo = localLogo ?? '';
     if (Object.keys(body).length > 0) {
       await fetch(`${API}/settings`, {
@@ -377,10 +385,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return false;
   };
 
-  const updateCenter = async (name: string, logo: string) => {
+  const updateCenter = async (name: string, nameEn: string, logo: string) => {
     const resolvedLogo = fileUrl(logo);
-    setState(prev => ({ ...prev, centerName: name, centerLogo: resolvedLogo }));
+    setState(prev => ({ ...prev, centerName: name, centerNameEn: nameEn, centerLogo: resolvedLogo }));
     try { localStorage.setItem('centerName', name); } catch { /* quota / private mode */ }
+    try { localStorage.setItem('centerNameEn', nameEn); } catch { /* quota / private mode */ }
     try { localStorage.setItem('centerLogo', resolvedLogo); } catch { /* quota / private mode */ }
     try {
       const token = localStorage.getItem('ems_token');
@@ -388,7 +397,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await fetch(`${API}/settings`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ centerName: name, centerLogo: logo }),
+          body: JSON.stringify({ centerName: name, centerNameEn: nameEn, centerLogo: logo }),
         });
       }
     } catch { /* ignore */ }
