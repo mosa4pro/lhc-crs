@@ -37,6 +37,34 @@ const subName = (sub: Sub) => sub.diploma?.name || sub.course?.name || `#${sub.i
 const getPhone = (p: any) => { try { return (typeof p === 'string' ? JSON.parse(p) : p)?.[0] || '—'; } catch { return '—'; } };
 const remOf = (i: Inst) => Math.max(0, (i.amount || 0) - (i.paidAmount || 0));
 
+// Normalize a reference number: convert Arabic/Persian digits to English and strip
+// invisible bidi/zero-width characters so values typed on any keyboard are comparable.
+const cleanRefVal = (v?: string) => normalizeDigits((v || '').replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')).trim();
+
+// Inline live status under the reference field: checking / taken / available.
+const refStatusLine = (checking: boolean, used: boolean, hasValue: boolean) => {
+  if (!hasValue) return null;
+  if (checking) {
+    return (
+      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <RefreshCw size={10} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ التحقق من توفر الرقم المرجع...
+      </div>
+    );
+  }
+  if (used) {
+    return (
+      <div style={{ fontSize: '0.62rem', color: 'var(--danger)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <AlertTriangle size={10} /> الرقم المرجع مستخدم مسبقاً — أدخل رقماً جديداً
+      </div>
+    );
+  }
+  return (
+    <div style={{ fontSize: '0.62rem', color: 'var(--success)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+      <CheckCircle2 size={10} /> الرقم المرجع متاح
+    </div>
+  );
+};
+
 // Build the distribution plan for a payment amount across the subscription's installments.
 // Used by BOTH the live preview and the submit validation so they can never disagree.
 const buildPayPlan = (amt: number, current: Inst, installs: Inst[]) => {
@@ -142,6 +170,8 @@ export const FinInstallmentsPage = () => {
   const [payHawalaNum, setPayHawalaNum] = useState('');
   const [payNotes, setPayNotes] = useState('');
   const [payLoading, setPayLoading] = useState(false);
+  const [refUsed, setRefUsed] = useState(false);
+  const [refChecking, setRefChecking] = useState(false);
 
   /* ── Reschedule panel (fixed on the right) ── */
   const [scheduleCount, setScheduleCount] = useState(0);
@@ -262,6 +292,21 @@ export const FinInstallmentsPage = () => {
     if (sid) pickStudent({ id: sid });
   }, [searchParams, pickStudent]);
 
+  /* ── Live duplicate check on the payment reference ── */
+  useEffect(() => {
+    const ref = cleanRefVal(payRef);
+    if (!ref) { setRefUsed(false); setRefChecking(false); return; }
+    setRefChecking(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiFetch(`/financial/check-reference?ref=${encodeURIComponent(ref)}`);
+        setRefUsed(!!res?.used);
+      } catch { setRefUsed(false); }
+      finally { setRefChecking(false); }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [payRef, apiFetch]);
+
   /* Refresh workspace (subs + selected sub installments) after mutations */
   const refreshWorkspace = useCallback(async () => {
     if (!student) return;
@@ -320,6 +365,8 @@ export const FinInstallmentsPage = () => {
     setPayCheckNum('');
     setPayHawalaNum('');
     setPayNotes('');
+    setRefUsed(false);
+    setRefChecking(false);
   };
 
   /* ── Derived (right-panel detail) ── */
@@ -502,8 +549,9 @@ export const FinInstallmentsPage = () => {
     const amt = toNumber(payAmount);
     if (!amt || amt <= 0) { toast.error('المبلغ مطلوب'); return; }
     if (!payDest) { toast.error('اختر جهة الدفع (جهة التعليم أو لدينا)'); return; }
-    const cleanRef = (v?: string) => normalizeDigits((v || '').replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')).trim();
-    const refVal = cleanRef(payRef) || cleanRef(payWalletRef) || cleanRef(payCheckNum) || cleanRef(payHawalaNum);
+    const refVal = cleanRefVal(payRef) || cleanRefVal(payWalletRef) || cleanRefVal(payCheckNum) || cleanRefVal(payHawalaNum);
+    if (!refVal) { toast.error('رقم المرجع مطلوب — أدخله بأي لغة'); return; }
+    if (refUsed) { toast.error('رقم المرجع مستخدم مسبقاً في معاملة أخرى — أدخل رقماً جديداً'); return; }
     if (payDest === 'US') {
       if (payMethod === 'TRANSFER' && !paySubMethod) { toast.error('يرجى اختيار نوع المحفظة الإلكترونية'); return; }
       if (payMethod === 'CHECK') { if (!payBank) { toast.error('يرجى اختيار البنك'); return; } if (!payCheckNum.trim()) { toast.error('رقم الشيك مطلوب'); return; } }
@@ -790,7 +838,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
           {/* ═════════════ RIGHT: WORKSPACE PANEL (reschedule OR installment detail) ═════════════ */}
-          <aside style={{ flex: selInstId ? '0 0 400px' : '0 0 340px', minWidth: 300, position: 'sticky', top: 14, order: 1 }}>
+          <aside style={{ flex: selInstId ? '0 0 460px' : '0 0 400px', minWidth: 330, position: 'sticky', top: 14, order: 1 }}>
             <div className="glass-panel" style={{ overflow: 'hidden', border: '1px solid var(--glass-border)', borderRadius: 14 }}>
               <div style={{
                 padding: '14px 16px', borderBottom: '1px solid var(--glass-border)',
@@ -953,7 +1001,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                             <div className="form-group" style={{ marginBottom: 9 }}>
                               <label style={gl}>المبلغ (د.أ) <span style={rq}>*</span></label>
                               <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={payAmount}
-                                onChange={e => setPayAmount(normalizeDigits(e.target.value))} style={{ direction: 'ltr', fontSize: '0.8rem', fontWeight: 600 }} />
+                                onChange={e => setPayAmount(normalizeDigits(e.target.value).replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1'))} style={{ direction: 'ltr', fontSize: '0.8rem', fontWeight: 600 }} />
                               {(() => {
                                 const v = toNumber(payAmount);
                                 if (!v || v <= 0) return null;
@@ -1025,8 +1073,9 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
 
                             {payDest === 'ENTITY' ? (<>
                               <div className="form-group" style={{ marginBottom: 8 }}>
-                                <label style={gl}>رقم المرجع <span style={{ ...rq, color: 'var(--text-muted)' }}>(اختياري)</span></label>
-                                <input type="text" className="glass-input" value={payRef} onChange={e => setPayRef(normalizeDigits(e.target.value))} placeholder="رقم الإيصال — يُولَّد تلقائياً إن تُرك فارغاً" style={{ fontSize: '0.8rem' }} />
+                                <label style={gl}>رقم المرجع <span style={rq}>*</span></label>
+                                <input type="text" className={`glass-input ${refUsed ? 'error-field' : ''}`} value={payRef} onChange={e => setPayRef(normalizeDigits(e.target.value))} placeholder="رقم الإيصال — يُقبل بأي لغة" style={{ fontSize: '0.8rem' }} />
+                                {refStatusLine(refChecking, refUsed, !!cleanRefVal(payRef))}
                               </div>
                             </>) : (<>
                               <div className="form-group" style={{ marginBottom: 8 }}>
@@ -1101,9 +1150,10 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                               </>)}
 
                               <div className="form-group" style={{ marginBottom: 8 }}>
-                                <label style={gl}>رقم المرجع <span style={{ ...rq, color: 'var(--text-muted)' }}>(اختياري)</span></label>
-                                <input type="text" className="glass-input" value={payRef} onChange={e => setPayRef(normalizeDigits(e.target.value))}
-                                  placeholder="رقم الإيصال أو التحويل — يُولَّد تلقائياً إن تُرك فارغاً" style={{ fontSize: '0.8rem' }} />
+                                <label style={gl}>رقم المرجع <span style={rq}>*</span></label>
+                                <input type="text" className={`glass-input ${refUsed ? 'error-field' : ''}`} value={payRef} onChange={e => setPayRef(normalizeDigits(e.target.value))}
+                                  placeholder="رقم الإيصال أو التحويل — يُقبل بأي لغة" style={{ fontSize: '0.8rem' }} />
+                                {refStatusLine(refChecking, refUsed, !!cleanRefVal(payRef))}
                               </div>
                             </>)}
 
@@ -1129,7 +1179,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                             <div style={{ display: 'flex', gap: 8, marginBottom: 9 }}>
                               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                                 <label style={{ ...gl, fontSize: '0.7rem' }}>المبلغ</label>
-                                <input type="text" inputMode="decimal" className="glass-input" value={eAmt} onChange={e => setEAmt(e.target.value)} style={{ direction: 'ltr', fontSize: '0.8rem' }} />
+                                <input type="text" inputMode="decimal" className="glass-input" value={eAmt} onChange={e => setEAmt(normalizeDigits(e.target.value).replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1'))} style={{ direction: 'ltr', fontSize: '0.8rem' }} />
                               </div>
                               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                                 <label style={{ ...gl, fontSize: '0.7rem' }}>تاريخ الاستحقاق</label>
@@ -1600,7 +1650,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
               <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                   <label style={gl}>المبلغ (د.أ)</label>
-                  <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={aAmt} onChange={e => setAAmt(e.target.value)} style={{ direction: 'ltr', fontSize: '0.78rem', padding: '9px 12px' }} />
+                  <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={aAmt} onChange={e => setAAmt(normalizeDigits(e.target.value).replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1'))} style={{ direction: 'ltr', fontSize: '0.78rem', padding: '9px 12px' }} />
                 </div>
                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                   <label style={gl}>تاريخ الاستحقاق</label>

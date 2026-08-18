@@ -423,6 +423,20 @@ router.get('/student/:studentId', authMiddleware, selfOrPerm('finance.view'), as
   }
 });
 
+// ==================== CHECK REFERENCE AVAILABILITY ====================
+// Returns whether a payment reference number is already used, so the UI can
+// warn the user live before they submit.
+router.get('/check-reference', authMiddleware, async (req, res) => {
+  try {
+    const ref = String((req.query.ref as string) || '').replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '').trim();
+    if (!ref) return res.json({ used: false });
+    const found = await prisma.financialTransaction.findFirst({ where: { referenceNumber: ref } });
+    return res.json({ used: !!found });
+  } catch {
+    return res.status(500).json({ error: 'خطأ في التحقق من الرقم المرجع' });
+  }
+});
+
 // ==================== CREATE RECEIPT (سند قبض) ====================
 router.post('/receipt', authMiddleware, requirePermission('finance.receipts'), async (req, res) => {
   try {
