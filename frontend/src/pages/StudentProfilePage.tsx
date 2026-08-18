@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, User, FileText, Calendar, CreditCard, GraduationCap, Printer, Filter, Image, MessageCircle, ArrowLeftRight, Wallet, ChevronDown, ChevronUp, X, Plus, AlertTriangle, CheckCircle2, RefreshCw, Info, Send } from 'lucide-react';
+import { Search, User, FileText, Calendar, CreditCard, GraduationCap, Printer, Filter, Image, MessageCircle, ArrowLeftRight, Wallet, ChevronDown, ChevronUp, X, Plus, AlertTriangle, CheckCircle2, RefreshCw, Info, Send, Pin, PinOff, Banknote } from 'lucide-react';
 import { useApi, useAuth, fileUrl } from '../context/AuthContext';
 import { DeepSearchModal } from '../components/DeepSearchModal';
 import { LearningTypeBadge, learningTypeLabel, modalityLabel } from '../components/LearningTypeBadge';
@@ -14,6 +14,15 @@ import { normalizeDigits } from '../utils/constants';
 import { parseStudentNotes } from '../utils/studentNotes';
 
 const BL: Record<string, string> = { Jordan_Ahli: 'الأهلي الأردني', Arab_Bank: 'العربي', Housing_Bank: 'الإسكان', Cairo_Amman: 'القاهرة عمان', Jordan_Kuwait: 'الأردني الكويتي', Islamic_Bank: 'الإسلامي الأردني', Safwa_Islamic: 'صفوة الإسلامي', Etihad: 'الاتحاد', Societe_Generale: 'سوسيتيه جنرال', Bank_of_Jordan: 'الأردن', Investbank: 'الاستثمار', Jordan_Commercial: 'التجاري الأردني', ABC: 'ABC', Standard_Chartered: 'ستاندارد تشارترد', BLOM: 'بلوم', Al_Rajhi: 'الراجحي', OTHER: 'آخر' };
+
+const pmBase: Record<string, string> = { CASH: 'نقدي', BANK: 'حوالة بنكية', CARD: 'بطاقة', TRANSFER: 'تحويل', WALLET: 'محفظة', ENTITY: 'جهة', CHECK: 'شيك' };
+const pmLabel = (t: any) => {
+  const parts: string[] = [pmBase[t?.paymentMethod] || t?.paymentMethod || '—'];
+  if (t?.paymentSubMethod) parts.push(t.paymentSubMethod);
+  return parts.join(' / ');
+};
+const destLabel = (d: any) => (d?.paymentDest === 'ENTITY' ? 'جهة التعليم' : d?.paymentDest === 'US' ? 'لدينا' : null);
+const ATT_PRINT_LABEL: Record<string, string> = { PRESENT: 'حاضر', ABSENT: 'غائب', LATE: 'متأخر', EXCUSED: 'بعذر' };
 
 // Remaining balance of an installment.
 const remOf = (i: any) => Math.max(0, (i?.amount || 0) - (i?.paidAmount || 0));
@@ -139,6 +148,8 @@ export const StudentProfilePage = () => {
   const [isDeepOpen, setIsDeepOpen] = useState(false);
   const [showCard, setShowCard] = useState(false);
   const [openAttSec, setOpenAttSec] = useState<number | null>(null);
+  const [openInstId, setOpenInstId] = useState<number | null>(null);
+  const [pinAttendance, setPinAttendance] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const [printSections, setPrintSections] = useState<Record<string, boolean>>({ subs: true, installments: true, notes: true, schedule: true, attendance: true });
 
@@ -452,7 +463,21 @@ export const StudentProfilePage = () => {
       const pFmtDate = (d: any) => d ? formatDate(d) : '—';
       html += `<div class="section"><h4>الحضور والغياب</h4><table><thead><tr><th>المادة</th><th>رقم الشعبة</th><th>الأيام</th><th>الوقت</th><th>من تاريخ</th><th>إلى تاريخ</th><th>عدد أيام الدوام</th><th>الحضور</th><th>الغياب</th><th>نسبة الحضور</th></tr></thead><tbody>`;
       secs.forEach((item: any) => { const sec = secToDisplay(item); const st = pStats(String(sec.id)); const enroll = item.enrollDate ? pFmtDate(item.enrollDate) : '—'; const isCur = item.status === 'ENROLLED' || item.status === 'ACTIVE'; const td = getTransferDate(sec.id, isCur); const end = td ? pFmtDate(td) : (isCur ? 'الآن' : '—'); html += `<tr><td>${sec.course?.name || sec.diploma?.name || '—'}</td><td>${sec.name || '—'}</td><td>${scheduleDays(sec)}</td><td>${scheduleTime(sec)}</td><td>${enroll}</td><td>${end}</td><td>${st.total}</td><td>${st.present}</td><td>${st.absent + st.late}</td><td>${st.total ? st.pct + '%' : '—'}</td></tr>`; });
-      html += `</tbody></table></div>`; }
+      html += `</tbody></table>`;
+      if (pinAttendance) {
+        html += secs.map((item: any) => {
+          const sec = secToDisplay(item);
+          const rows = attDetailRows(item);
+          const detailRows = rows.map((r: any) => {
+            const code = r.record ? String(r.record.status || '').toUpperCase() : '';
+            const cls = code === 'ABSENT' ? 'danger' : code === 'LATE' ? 'warning' : code === 'PRESENT' ? 'success' : code === 'EXCUSED' ? 'secondary' : '';
+            return `<tr><td>${pFmtDate(r.date)}</td><td>${r.dayName}</td><td>${code ? `<span class="badge ${cls}">${ATT_PRINT_LABEL[code] || code}</span>` : 'غير مسجل'}</td><td>${r.record?.notes || ''}</td></tr>`;
+          }).join('');
+          return `<h5 style="margin:10px 0 6px;font-size:12px;color:#333">${sec.course?.name || sec.diploma?.name || 'مادة'} (${sec.name || ''}) — سجل كامل</h5>
+            <table><thead><tr><th>التاريخ</th><th>اليوم</th><th>الحالة</th><th>ملاحظات</th></tr></thead><tbody>${detailRows || '<tr><td colspan="4">لا توجد أيام دوام</td></tr>'}</tbody></table>`;
+        }).join('');
+      }
+      html += `</div>`; }
     }
     if (printSections.notes && s.notes) { html += `<div class="section"><h4>ملاحظات</h4>${parseStudentNotes(s.notes).map((n, i) => `<p style="white-space:pre-line;margin:4px 0">${(n.content || '').replace(/</g, '&lt;')}</p>`).join('')}</div>`; }
     return html;
@@ -734,9 +759,21 @@ export const StudentProfilePage = () => {
               {ins.length > 0 ? (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                   <thead><tr><th style={thStyle}>القسط</th><th style={thStyle}>المبلغ</th><th style={thStyle}>تاريخ الاستحقاق</th><th style={thStyle}>جهة الدفع</th><th style={thStyle}>الحالة</th><th style={thStyle}>دفع</th></tr></thead>
-                  <tbody>{ins.slice(0, 8).map((inst: any) => (
-                    <tr key={inst.id}>
-                      <td style={tdStyle}>قسط {inst.installmentNumber}</td>
+                  <tbody>{ins.slice(0, 8).map((inst: any) => {
+                    const open = openInstId === inst.id;
+                    const pays = (profile?.transactions || []).filter((t: any) => Number(t.installmentId) === Number(inst.id) && t.status !== 'VOIDED');
+                    return (
+                    <>
+                    <tr key={inst.id} onClick={() => setOpenInstId(open ? null : inst.id)}
+                      style={{ cursor: 'pointer', background: open ? 'var(--primary-light)' : 'transparent', transition: 'background 0.15s' }}
+                      title="اضغط لعرض دفعات هذا القسط">
+                      <td style={{ ...tdStyle, fontWeight: 700 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                          {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                          قسط {inst.installmentNumber}
+                          {pays.length > 0 && <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 400 }}>({pays.length} دفعة)</span>}
+                        </span>
+                      </td>
                       <td style={tdStyle}>{inst.amount?.toFixed(3)} د</td>
                       <td style={tdStyle}>{formatDate(inst.dueDate)}</td>
                       <td style={tdStyle}>
@@ -756,7 +793,7 @@ export const StudentProfilePage = () => {
                           {inst.status === 'PAID' ? 'مدفوع' : inst.status === 'OVERDUE' ? 'متأخر' : 'معلق'}
                         </span>
                       </td>
-                      <td style={{ ...tdStyle, width: 70 }}>
+                      <td style={{ ...tdStyle, width: 70 }} onClick={e => e.stopPropagation()}>
                         {remOf(inst) > 0 ? (
                           <button onClick={() => openPay(inst)}
                             style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, transition: 'all 0.15s' }}>
@@ -765,7 +802,63 @@ export const StudentProfilePage = () => {
                         ) : <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>—</span>}
                       </td>
                     </tr>
-                  ))}</tbody>
+                    {open && (
+                      <tr key={`pays-${inst.id}`}>
+                        <td colSpan={6} style={{ background: 'var(--glass-bg)', padding: '12px 14px', border: '1px solid var(--glass-border)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--secondary-color)' }}>
+                              <Banknote size={13} style={{ display: 'inline', verticalAlign: 'middle', marginLeft: 4 }} /> دفعات قسط #{inst.installmentNumber}
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>إجمالي المسدد: <strong style={{ color: 'var(--success)', fontFamily: 'monospace' }}>{(inst.paidAmount || 0).toFixed(3)} د</strong></span>
+                          </div>
+                          {pays.length > 0 ? (
+                            <div style={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.74rem' }}>
+                                <thead>
+                                  <tr>
+                                    <th style={thStyle}>#</th>
+                                    <th style={thStyle}>التاريخ</th>
+                                    <th style={thStyle}>النوع</th>
+                                    <th style={thStyle}>المبلغ</th>
+                                    <th style={thStyle}>طريقة الدفع</th>
+                                    <th style={thStyle}>الجهة</th>
+                                    <th style={thStyle}>المرجع / الإيصال</th>
+                                    <th style={thStyle}>ملاحظات</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {pays.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((p: any, i: number) => (
+                                    <tr key={p.id}>
+                                      <td style={{ ...tdStyle, color: 'var(--text-muted)', fontSize: '0.68rem' }}>{i + 1}</td>
+                                      <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontSize: '0.72rem' }}>{formatDate(p.date)}</td>
+                                      <td style={tdStyle}>
+                                        <span className={`badge ${p.type === 'RECEIPT' ? 'success' : p.type === 'PAYMENT' ? 'danger' : 'secondary'}`} style={{ fontSize: '0.62rem' }}>
+                                          {p.type === 'RECEIPT' ? 'قبض' : p.type === 'PAYMENT' ? 'صرف' : p.type}
+                                        </span>
+                                      </td>
+                                      <td style={{ ...tdStyle, fontWeight: 700, fontFamily: 'monospace', direction: 'ltr', color: p.type === 'PAYMENT' ? 'var(--danger)' : 'var(--success)' }}>
+                                        {p.amount?.toFixed(3)} د
+                                      </td>
+                                      <td style={tdStyle}>{pmLabel(p)}</td>
+                                      <td style={tdStyle}>{destLabel(p) || '—'}</td>
+                                      <td style={{ ...tdStyle, fontSize: '0.7rem', direction: 'ltr' }}>{p.referenceNumber || p.receiptNumber || '—'}</td>
+                                      <td style={{ ...tdStyle, fontSize: '0.7rem', color: 'var(--text-muted)' }}>{p.notes || '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div style={{ textAlign: 'center', padding: '14px 0', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                              لا توجد دفعات مسجلة على هذا القسط
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    </>
+                    );
+                  })}</tbody>
                 </table>
               ) : <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>لا توجد أقساط</p>}
             </div>
@@ -775,6 +868,19 @@ export const StudentProfilePage = () => {
             <div className="glass-panel" style={{ padding: '18px 22px' }}>
                 <h4 style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.95rem' }}>
                   <Calendar size={17} color="var(--primary-color)" /> الحضور والغياب
+                  <button onClick={() => setPinAttendance(p => !p)}
+                    title={pinAttendance ? 'مثبّت — سيظهر السجل الكامل للغياب في الطباعة' : 'ثبّت لعرض السجل الكامل للغياب في الطباعة'}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+                      padding: '4px 10px', borderRadius: 8, fontSize: '0.7rem', fontWeight: 600,
+                      border: `1.5px solid ${pinAttendance ? 'var(--primary)' : 'var(--glass-border)'}`,
+                      background: pinAttendance ? 'var(--primary)' : 'var(--glass-bg)',
+                      color: pinAttendance ? '#fff' : 'var(--text-muted)',
+                      transition: 'all 0.2s',
+                    }}>
+                    {pinAttendance ? <Pin size={12} /> : <PinOff size={12} />}
+                    {pinAttendance ? 'مثبّت — سجل كامل في الطباعة' : 'تثبيت السجل الكامل للطباعة'}
+                  </button>
                 </h4>
                 {secList.length ? (
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
