@@ -150,7 +150,7 @@ export const StudentProfilePage = () => {
   const [openInstId, setOpenInstId] = useState<number | null>(null);
   const [pinAttendance, setPinAttendance] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
-  const [printSections, setPrintSections] = useState<Record<string, boolean>>({ subs: true, installments: true, notes: true, schedule: true, attendance: true });
+  const [printSections, setPrintSections] = useState<Record<string, boolean>>({ subs: true, installments: true, notes: true, schedule: true, attendance: true, grades: false });
 
   /* ── Notes log state ── */
   const [noteText, setNoteText] = useState('');
@@ -466,6 +466,14 @@ export const StudentProfilePage = () => {
       ins.forEach((inst: any) => { const st = inst.status === 'PAID' ? 'مدفوع' : inst.status === 'OVERDUE' ? 'متأخر' : 'معلق'; const cls = inst.status === 'PAID' ? 'success' : inst.status === 'OVERDUE' ? 'danger' : 'warning'; const destParts: string[] = []; if (inst.paymentDest) { if (inst.paymentDest === 'ENTITY') { destParts.push('جهة التعليم'); const ien = instEntityName(inst); if (ien) destParts.push(ien); } else { destParts.push(`لدينا — ${centerName || 'المركز'}`); } } html += `<tr><td>${inst.installmentNumber}</td><td>${inst.amount?.toFixed(3)} د</td><td>${formatDate(inst.dueDate)}</td><td>${destParts.length ? destParts.join(' / ') : '—'}</td><td><span class="badge ${cls}">${st}</span></td></tr>`; });
       html += `</tbody></table></div>`;
     }
+    if (printSections.grades) {
+      const gradeRows = getSections().filter((item: any) => item.grade != null || item.isProject || item.result);
+      if (gradeRows.length) {
+        html += `<div class="section"><h4>العلامات</h4><table><thead><tr><th>المادة</th><th>الشعبة</th><th>الدرجة</th><th>النتيجة</th><th>الاعتماد</th></tr></thead><tbody>`;
+        gradeRows.forEach((item: any) => { const sec = secToDisplay(item); const grade = item.isProject ? 'مشروع' : (item.grade != null ? item.grade : '—'); const res = item.result === 'PASS' ? 'ناجح' : item.result === 'FAIL' ? 'راسب' : '—'; const cls = item.result === 'PASS' ? 'success' : item.result === 'FAIL' ? 'danger' : 'secondary'; const appr = item.gradeApprovedByAdmin ? 'معتمد إدارياً' : item.gradeApprovedByInstructor ? 'معتمد من المدرب' : 'غير معتمد'; html += `<tr><td>${sec.course?.name || sec.diploma?.name || '—'}</td><td>${sec.name || '—'}</td><td>${grade}</td><td><span class="badge ${cls}">${res}</span></td><td>${appr}</td></tr>`; });
+        html += `</tbody></table></div>`;
+      }
+    }
     if (printSections.attendance) { const secs = getSections(); if (secs.length) {
       const atts = getAttendances();
       const pGrouped: Record<string, any[]> = {}; atts.forEach((a: any) => { if (!pGrouped[a.sectionId]) pGrouped[a.sectionId] = []; pGrouped[a.sectionId].push(a); });
@@ -640,7 +648,8 @@ export const StudentProfilePage = () => {
                 { key: 'subs', label: 'الاشتراكات', icon: <GraduationCap size={13} /> },
                 { key: 'installments', label: 'جدول الأقساط', icon: <CreditCard size={13} /> },
                 { key: 'attendance', label: 'الحضور والغياب', icon: <Calendar size={13} /> },
-                { key: 'notes', label: 'الملاحظات', icon: <FileText size={13} /> }
+                { key: 'notes', label: 'الملاحظات', icon: <FileText size={13} /> },
+                { key: 'grades', label: 'العلامات', icon: <GraduationCap size={13} /> }
               ].map(s => {
                 const active = printSections[s.key as keyof typeof printSections];
                 return (
@@ -871,6 +880,47 @@ export const StudentProfilePage = () => {
               ) : <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>لا توجد أقساط</p>}
             </div>
             )}
+
+            <div className="glass-panel" style={{ padding: '18px 22px' }}>
+              <h4 style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.95rem' }}>
+                <GraduationCap size={17} color="var(--primary-color)" /> العلامات
+                <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 400 }}>غير محدد في الطباعة تلقائياً — فعّله من "أقسام الطباعة" عند الحاجة</span>
+              </h4>
+              {(() => {
+                const gradeRows = secList.filter((item: any) => item.grade != null || item.isProject || item.result);
+                if (!gradeRows.length) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '20px 0', opacity: 0.4 }}>
+                      <GraduationCap size={32} style={{ marginBottom: 8 }} />
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>لا توجد علامات مسجلة</p>
+                    </div>
+                  );
+                }
+                const resBadge = (r: string | null) => r === 'PASS' ? 'success' : r === 'FAIL' ? 'danger' : 'secondary';
+                const resLabel = (r: string | null) => r === 'PASS' ? 'ناجح' : r === 'FAIL' ? 'راسب' : '—';
+                return (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                      <thead><tr><th style={thStyle}>المادة</th><th style={thStyle}>الشعبة</th><th style={thStyle}>الدرجة</th><th style={thStyle}>النتيجة</th><th style={thStyle}>الاعتماد</th></tr></thead>
+                      <tbody>{gradeRows.map((item: any) => {
+                        const sec = secToDisplay(item);
+                        const grade = item.isProject ? 'مشروع' : (item.grade != null ? item.grade : '—');
+                        const appr = item.gradeApprovedByAdmin ? 'معتمد إدارياً' : item.gradeApprovedByInstructor ? 'معتمد من المدرب' : 'غير معتمد';
+                        return (
+                          <tr key={item.id}>
+                            <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{sec.course?.name || sec.diploma?.name || '—'}</td>
+                            <td style={tdStyle}>{sec.name || '—'}</td>
+                            <td style={{ ...tdStyle, fontWeight: 700, fontFamily: 'monospace', color: item.isProject ? 'var(--text-muted)' : 'var(--secondary-color)' }}>{grade}</td>
+                            <td style={tdStyle}><span className={`badge ${resBadge(item.result)}`}>{resLabel(item.result)}</span></td>
+                            <td style={{ ...tdStyle, fontSize: '0.72rem', color: item.gradeApprovedByAdmin || item.gradeApprovedByInstructor ? 'var(--success)' : 'var(--text-muted)' }}>{appr}</td>
+                          </tr>
+                        );
+                      })}</tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
 
             {printSections.attendance && (
             <div className="glass-panel" style={{ padding: '18px 22px' }}>
