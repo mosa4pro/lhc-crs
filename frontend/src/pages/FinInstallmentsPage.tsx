@@ -11,7 +11,7 @@ import { DeepSearchModal } from '../components/DeepSearchModal';
 import { DateField } from '../components/DateField';
 import { formatDate } from '../utils/dateFormat';
 import { printHeaderHTML } from '../utils/print';
-import { toNumber } from '../utils/arabicNumbers';
+import { toNumber, cleanDecimal } from '../utils/arabicNumbers';
 import { normalizeDigits } from '../utils/constants';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
@@ -1001,7 +1001,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                             <div className="form-group" style={{ marginBottom: 9 }}>
                               <label style={gl}>المبلغ (د.أ) <span style={rq}>*</span></label>
                               <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={payAmount}
-                                onChange={e => setPayAmount(normalizeDigits(e.target.value).replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1'))} style={{ direction: 'ltr', fontSize: '0.8rem', fontWeight: 600 }} />
+                                onChange={e => setPayAmount(cleanDecimal(e.target.value))} style={{ direction: 'ltr', fontSize: '0.8rem', fontWeight: 600 }} />
                               {(() => {
                                 const v = toNumber(payAmount);
                                 if (!v || v <= 0) return null;
@@ -1179,7 +1179,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                             <div style={{ display: 'flex', gap: 8, marginBottom: 9 }}>
                               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                                 <label style={{ ...gl, fontSize: '0.7rem' }}>المبلغ</label>
-                                <input type="text" inputMode="decimal" className="glass-input" value={eAmt} onChange={e => setEAmt(normalizeDigits(e.target.value).replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1'))} style={{ direction: 'ltr', fontSize: '0.8rem' }} />
+                                <input type="text" inputMode="decimal" className="glass-input" value={eAmt} onChange={e => setEAmt(cleanDecimal(e.target.value))} style={{ direction: 'ltr', fontSize: '0.8rem' }} />
                               </div>
                               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                                 <label style={{ ...gl, fontSize: '0.7rem' }}>تاريخ الاستحقاق</label>
@@ -1650,7 +1650,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
               <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                   <label style={gl}>المبلغ (د.أ)</label>
-                  <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={aAmt} onChange={e => setAAmt(normalizeDigits(e.target.value).replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1'))} style={{ direction: 'ltr', fontSize: '0.78rem', padding: '9px 12px' }} />
+                  <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={aAmt} onChange={e => setAAmt(cleanDecimal(e.target.value))} style={{ direction: 'ltr', fontSize: '0.78rem', padding: '9px 12px' }} />
                 </div>
                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                   <label style={gl}>تاريخ الاستحقاق</label>
