@@ -5,6 +5,11 @@ import { authMiddleware, requirePermission } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Normalize Arabic/Persian digits to English so payments work with any keyboard language.
+const normalizeDigits = (v: string): string =>
+  v.replace(/[\u0660-\u0669]/g, d => String.fromCharCode(d.charCodeAt(0) - 0x0660 + 48))
+    .replace(/[\u06f0-\u06f9]/g, d => String.fromCharCode(d.charCodeAt(0) - 0x06f0 + 48));
+
 // ==================== GENERATE INSTALLMENTS (helper) ====================
 export async function generateInstallments(
   studentId: string,
@@ -346,15 +351,17 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
     if (installment.status === 'PAID') return res.status(400).json({ error: 'هذا القسط مدفوع بالفعل' });
     if (!paymentDest) return res.status(400).json({ error: 'يرجى تحديد جهة الدفع (جهة التعليم أو لدينا)' });
 
-    const payAmount = parseFloat(amount);
+    const payAmount = parseFloat(typeof amount === 'string' ? normalizeDigits(amount) : amount);
     if (isNaN(payAmount) || payAmount <= 0) return res.status(400).json({ error: 'مبلغ غير صالح' });
 
-    if (referenceNumber) {
-      const existing = await prisma.financialTransaction.findFirst({ where: { referenceNumber } });
+    const finalRef = referenceNumber ? normalizeDigits(String(referenceNumber)).trim() : null;
+
+    if (finalRef) {
+      const existing = await prisma.financialTransaction.findFirst({ where: { referenceNumber: finalRef } });
       if (existing) return res.status(400).json({ error: 'رقم المرجع مستخدم مسبقاً في معاملة أخرى' });
     }
 
-    const expensesAmount = parseFloat(expenses) || 0;
+    const expensesAmount = parseFloat(typeof expenses === 'string' ? normalizeDigits(expenses) : expenses) || 0;
     const netAmount = payAmount - expensesAmount;
     if (netAmount < 0) return res.status(400).json({ error: 'المصروفات أكبر من المبلغ المدفوع' });
 
@@ -366,7 +373,7 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
     // so every payment is always traceable and never blocked by a missing reference.
     const actingUser = (req as any).user;
     const receiptNumber = await generateReceiptNumber('RECEIPT');
-    const finalRef = referenceNumber || receiptNumber;
+    const finalRefWithFallback = finalRef || receiptNumber;
 
     const updated = await prisma.installment.update({
       where: { id: parseInt(req.params.id as string) },
@@ -376,7 +383,7 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
         status: newStatus,
         paymentDate: newStatus === 'PAID' ? new Date() : installment.paymentDate,
         paymentMethod: paymentMethod || 'CASH',
-        referenceNumber: finalRef,
+        referenceNumber: finalRefWithFallback,
         paymentWallet: paymentWallet || installment.paymentWallet,
         paymentBank: paymentBank || installment.paymentBank,
         senderInfo: senderInfo || installment.senderInfo,
@@ -402,7 +409,7 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
         paymentMethod: paymentMethod || 'CASH',
         status: 'COMPLETED',
         receiptNumber,
-        referenceNumber: finalRef,
+        referenceNumber: finalRefWithFallback,
         notes: notes || `دفع قسط ${installment.installmentNumber}/${installment.totalInstallments}`,
         paymentWallet: paymentMethod === 'WALLET' ? (paymentWallet || null) : null,
         paymentBank: paymentMethod === 'CLICK' ? (paymentBank || null) : null,

@@ -12,6 +12,7 @@ import { DateField } from '../components/DateField';
 import { formatDate } from '../utils/dateFormat';
 import { printHeaderHTML } from '../utils/print';
 import { toNumber } from '../utils/arabicNumbers';
+import { normalizeDigits } from '../utils/constants';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
 interface Sub { id: number | string; studentId: string; baseFee: number; totalCost: number; paymentType: string; installmentsCount: number; date: string; status: string; notes?: string; diploma?: { id: string; name: string }; course?: { id: string; name: string }; entity?: { id: number; name: string }; }
@@ -475,7 +476,7 @@ export const FinInstallmentsPage = () => {
     const amt = toNumber(payAmount);
     if (!amt || amt <= 0) { toast.error('المبلغ مطلوب'); return; }
     if (!payDest) { toast.error('اختر جهة الدفع (جهة التعليم أو لدينا)'); return; }
-    const cleanRef = (v?: string) => (v || '').replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '').trim();
+    const cleanRef = (v?: string) => normalizeDigits((v || '').replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')).trim();
     const refVal = cleanRef(payRef) || cleanRef(payWalletRef) || cleanRef(payCheckNum) || cleanRef(payHawalaNum);
     if (payDest === 'US') {
       if (payMethod === 'TRANSFER' && !paySubMethod) { toast.error('يرجى اختيار نوع المحفظة الإلكترونية'); return; }
@@ -917,7 +918,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                             <div className="form-group" style={{ marginBottom: 9 }}>
                               <label style={gl}>المبلغ (د.أ) <span style={rq}>*</span></label>
                               <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={payAmount}
-                                onChange={e => setPayAmount(e.target.value)} style={{ direction: 'ltr', fontSize: '0.8rem', fontWeight: 600 }} />
+                                onChange={e => setPayAmount(normalizeDigits(e.target.value))} style={{ direction: 'ltr', fontSize: '0.8rem', fontWeight: 600 }} />
                             </div>
 
                             <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
@@ -953,7 +954,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                             {payDest === 'ENTITY' ? (<>
                               <div className="form-group" style={{ marginBottom: 8 }}>
                                 <label style={gl}>رقم المرجع <span style={{ ...rq, color: 'var(--text-muted)' }}>(اختياري)</span></label>
-                                <input type="text" className="glass-input" value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="رقم الإيصال — يُولَّد تلقائياً إن تُرك فارغاً" style={{ fontSize: '0.8rem' }} />
+                                <input type="text" className="glass-input" value={payRef} onChange={e => setPayRef(normalizeDigits(e.target.value))} placeholder="رقم الإيصال — يُولَّد تلقائياً إن تُرك فارغاً" style={{ fontSize: '0.8rem' }} />
                               </div>
                             </>) : (<>
                               <div className="form-group" style={{ marginBottom: 8 }}>
@@ -985,7 +986,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                                   </div>
                                   <div>
                                     <label style={{ ...gl, fontSize: '0.7rem' }}>رقم الحوالة</label>
-                                    <input type="text" className="glass-input" value={payWalletRef} onChange={e => setPayWalletRef(e.target.value)}
+                                    <input type="text" className="glass-input" value={payWalletRef} onChange={e => setPayWalletRef(normalizeDigits(e.target.value))}
                                       placeholder="اختياري — رقم العملية من المحفظة" style={{ fontSize: '0.74rem', padding: '5px 8px', direction: 'ltr' }} />
                                   </div>
                                 </div>
@@ -1002,7 +1003,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                                   </div>
                                   <div>
                                     <label style={{ ...gl, fontSize: '0.7rem' }}>رقم الشيك <span style={rq}>*</span></label>
-                                    <input type="text" className="glass-input" value={payCheckNum} onChange={e => setPayCheckNum(e.target.value)}
+                                    <input type="text" className="glass-input" value={payCheckNum} onChange={e => setPayCheckNum(normalizeDigits(e.target.value))}
                                       placeholder="رقم الشيك" style={{ fontSize: '0.74rem', padding: '5px 8px', direction: 'ltr' }} />
                                   </div>
                                 </div>
@@ -1021,7 +1022,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                                   </div>
                                   <div>
                                     <label style={{ ...gl, fontSize: '0.7rem' }}>رقم الحوالة <span style={rq}>*</span></label>
-                                    <input type="text" className="glass-input" value={payHawalaNum} onChange={e => setPayHawalaNum(e.target.value)}
+                                    <input type="text" className="glass-input" value={payHawalaNum} onChange={e => setPayHawalaNum(normalizeDigits(e.target.value))}
                                       placeholder="رقم الحوالة المالية" style={{ fontSize: '0.74rem', padding: '5px 8px', direction: 'ltr' }} />
                                   </div>
                                 </div>
@@ -1029,7 +1030,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
 
                               <div className="form-group" style={{ marginBottom: 8 }}>
                                 <label style={gl}>رقم المرجع <span style={{ ...rq, color: 'var(--text-muted)' }}>(اختياري)</span></label>
-                                <input type="text" className="glass-input" value={payRef} onChange={e => setPayRef(e.target.value)}
+                                <input type="text" className="glass-input" value={payRef} onChange={e => setPayRef(normalizeDigits(e.target.value))}
                                   placeholder="رقم الإيصال أو التحويل — يُولَّد تلقائياً إن تُرك فارغاً" style={{ fontSize: '0.8rem' }} />
                               </div>
                             </>)}
