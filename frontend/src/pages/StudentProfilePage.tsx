@@ -21,7 +21,6 @@ const pmLabel = (t: any) => {
   if (t?.paymentSubMethod) parts.push(t.paymentSubMethod);
   return parts.join(' / ');
 };
-const destLabel = (d: any) => (d?.paymentDest === 'ENTITY' ? 'جهة التعليم' : d?.paymentDest === 'US' ? 'لدينا' : null);
 const ATT_PRINT_LABEL: Record<string, string> = { PRESENT: 'حاضر', ABSENT: 'غائب', LATE: 'متأخر', EXCUSED: 'بعذر' };
 
 // Remaining balance of an installment.
@@ -355,6 +354,17 @@ export const StudentProfilePage = () => {
     const subId = inst.diplomaSubId || inst.courseSubId;
     return subId ? entityBySub.get(Number(subId)) : undefined;
   };
+
+  // Full destination text: entity name when "جهة التعليم", center name when "لدينا".
+  const destFull = (dest?: string, subId?: any) => {
+    if (dest === 'ENTITY') {
+      const en = subId != null ? entityBySub.get(Number(subId)) : undefined;
+      return en ? `جهة التعليم — ${en}` : 'جهة التعليم';
+    }
+    if (dest === 'US') return `لدينا — ${centerName || 'المركز'}`;
+    return undefined;
+  };
+  const txDestText = (t: any) => destFull(t?.paymentDest, t?.subscriptionId);
 
   const subs = [
     ...(selectedStudent?.diplomaSubscriptions || []).map((s: any) => ({ ...s, _type: 'diploma' })),
@@ -782,9 +792,7 @@ export const StudentProfilePage = () => {
                             <span className={`badge ${inst.paymentDest === 'ENTITY' ? 'warning' : 'secondary'}`} style={{ fontSize: '0.68rem', alignSelf: 'flex-start' }}>
                               {inst.paymentDest === 'ENTITY' ? 'جهة التعليم' : 'لدينا'}
                             </span>
-                            {inst.paymentDest === 'ENTITY' && instEntityName(inst) && (
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{instEntityName(inst)}</span>
-                            )}
+                            {(() => { const full = destFull(inst.paymentDest, inst.subscriptionId); const nm = full ? full.split('—')[1]?.trim() : null; return nm ? <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{nm}</span> : null; })()}
                           </div>
                         ) : '—'}
                       </td>
@@ -840,7 +848,7 @@ export const StudentProfilePage = () => {
                                         {p.amount?.toFixed(3)} د
                                       </td>
                                       <td style={tdStyle}>{pmLabel(p)}</td>
-                                      <td style={tdStyle}>{destLabel(p) || '—'}</td>
+                                      <td style={{ ...tdStyle, fontSize: '0.7rem' }}>{txDestText(p) || '—'}</td>
                                       <td style={{ ...tdStyle, fontSize: '0.7rem', direction: 'ltr' }}>{p.referenceNumber || p.receiptNumber || '—'}</td>
                                       <td style={{ ...tdStyle, fontSize: '0.7rem', color: 'var(--text-muted)' }}>{p.notes || '—'}</td>
                                     </tr>
