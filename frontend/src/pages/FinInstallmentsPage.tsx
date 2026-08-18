@@ -1001,9 +1001,16 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                             <div className="form-group" style={{ marginBottom: 9 }}>
                               <label style={gl}>المبلغ (د.أ) <span style={rq}>*</span></label>
                               <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={payAmount}
-                                onChange={e => setPayAmount(cleanDecimal(e.target.value))} style={{ direction: 'ltr', fontSize: '0.8rem', fontWeight: 600 }} />
+                                onInput={e => setPayAmount(cleanDecimal((e.target as HTMLInputElement).value))} style={{ direction: 'ltr', fontSize: '0.8rem', fontWeight: 600 }} />
                               {(() => {
                                 const v = toNumber(payAmount);
+                                if (payAmount.trim() && !(v > 0)) {
+                                  return (
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--danger)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <AlertTriangle size={12} /> لم يُحتسب المبلغ المدخل — تأكد من كتابة رقم صحيح
+                                    </div>
+                                  );
+                                }
                                 if (!v || v <= 0) return null;
                                 const plan = buildPayPlan(v, detail, subInstalls);
                                 const balance = remOf(detail);
@@ -1074,7 +1081,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                             {payDest === 'ENTITY' ? (<>
                               <div className="form-group" style={{ marginBottom: 8 }}>
                                 <label style={gl}>رقم المرجع <span style={rq}>*</span></label>
-                                <input type="text" className={`glass-input ${refUsed ? 'error-field' : ''}`} value={payRef} onChange={e => setPayRef(normalizeDigits(e.target.value))} placeholder="رقم الإيصال — يُقبل بأي لغة" style={{ fontSize: '0.8rem' }} />
+                                <input type="text" className={`glass-input ${refUsed ? 'error-field' : ''}`} value={payRef} onInput={e => setPayRef(normalizeDigits((e.target as HTMLInputElement).value))} placeholder="رقم الإيصال — يُقبل بأي لغة" style={{ fontSize: '0.8rem' }} />
                                 {refStatusLine(refChecking, refUsed, !!cleanRefVal(payRef))}
                               </div>
                             </>) : (<>
@@ -1151,7 +1158,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
 
                               <div className="form-group" style={{ marginBottom: 8 }}>
                                 <label style={gl}>رقم المرجع <span style={rq}>*</span></label>
-                                <input type="text" className={`glass-input ${refUsed ? 'error-field' : ''}`} value={payRef} onChange={e => setPayRef(normalizeDigits(e.target.value))}
+                                <input type="text" className={`glass-input ${refUsed ? 'error-field' : ''}`} value={payRef} onInput={e => setPayRef(normalizeDigits((e.target as HTMLInputElement).value))}
                                   placeholder="رقم الإيصال أو التحويل — يُقبل بأي لغة" style={{ fontSize: '0.8rem' }} />
                                 {refStatusLine(refChecking, refUsed, !!cleanRefVal(payRef))}
                               </div>
@@ -1179,7 +1186,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                             <div style={{ display: 'flex', gap: 8, marginBottom: 9 }}>
                               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                                 <label style={{ ...gl, fontSize: '0.7rem' }}>المبلغ</label>
-                                <input type="text" inputMode="decimal" className="glass-input" value={eAmt} onChange={e => setEAmt(cleanDecimal(e.target.value))} style={{ direction: 'ltr', fontSize: '0.8rem' }} />
+                                <input type="text" inputMode="decimal" className="glass-input" value={eAmt} onInput={e => setEAmt(cleanDecimal((e.target as HTMLInputElement).value))} style={{ direction: 'ltr', fontSize: '0.8rem' }} />
                               </div>
                               <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                                 <label style={{ ...gl, fontSize: '0.7rem' }}>تاريخ الاستحقاق</label>
@@ -1650,7 +1657,7 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
               <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                   <label style={gl}>المبلغ (د.أ)</label>
-                  <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={aAmt} onChange={e => setAAmt(cleanDecimal(e.target.value))} style={{ direction: 'ltr', fontSize: '0.78rem', padding: '9px 12px' }} />
+                  <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={aAmt} onInput={e => setAAmt(cleanDecimal((e.target as HTMLInputElement).value))} style={{ direction: 'ltr', fontSize: '0.78rem', padding: '9px 12px' }} />
                 </div>
                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                   <label style={gl}>تاريخ الاستحقاق</label>
