@@ -721,6 +721,70 @@ router.delete('/:id', authMiddleware, requirePermission('students.delete'), asyn
 });
 
 // ==========================================
+// ADD STUDENT NOTE — appended to a JSON log inside the student's `notes`
+// field. Each entry records who wrote it (full name + job title) so the
+// profile can show the author but the printed copy can hide it.
+// ==========================================
+const ROLE_JOB_TITLE: Record<string, string> = {
+  ADMIN: 'مدير النظام',
+  TEAM_LEADER: 'قائد فريق',
+  SUPERVISOR: 'مشرف',
+  REGISTRAR: 'مسجل',
+  EMPLOYEE: 'موظف',
+  INSTRUCTOR: 'مدرب',
+  TRAINEE: 'متدرب',
+  STUDENT: 'طالب',
+};
+
+router.post('/:id/notes', authMiddleware, requirePermission('students.edit'), async (req, res) => {
+  try {
+    const { content } = req.body;
+    const text = String(content || '').trim();
+    if (!text) return res.status(400).json({ error: 'نص الملاحظة مطلوب' });
+
+    const student = await prisma.student.findUnique({ where: { id: (req.params.id as string) } });
+    if (!student) return res.status(404).json({ error: 'الطالب غير موجود' });
+
+    const actingUser = (req as any).user;
+    const employee = await prisma.employee.findFirst({ where: { userId: actingUser.id } });
+    const authorName = actingUser.fullName || actingUser.username || 'مستخدم النظام';
+    const authorJobTitle = employee?.jobRole || ROLE_JOB_TITLE[actingUser.role] || actingUser.role;
+
+    // Parse the existing notes — if it's a JSON log array use it, otherwise wrap
+    // the legacy plain text as the first (anonymous) entry so nothing is lost.
+    let entries: any[] = [];
+    if (student.notes) {
+      try {
+        const parsed = JSON.parse(student.notes);
+        entries = Array.isArray(parsed) ? parsed : [{ content: student.notes, authorName: null, authorJobTitle: null, createdAt: student.createdAt }];
+      } catch {
+        entries = [{ content: student.notes, authorName: null, authorJobTitle: null, createdAt: student.createdAt }];
+      }
+    }
+    entries.push({ content: text, authorName, authorJobTitle, createdAt: new Date().toISOString() });
+
+    await prisma.student.update({
+      where: { id: (req.params.id as string) },
+      data: { notes: JSON.stringify(entries) },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: actingUser.id,
+        action: 'ADD_NOTE',
+        entity: 'Student',
+        details: JSON.stringify({ id: student.id, fullNameAr: student.fullNameAr }),
+        ipAddress: req.ip,
+      }
+    });
+
+    return res.json({ success: true, notes: entries });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'فشل إضافة الملاحظة' });
+  }
+});
+
+// ==========================================
 // TRANSFER student to another registrar
 // ==========================================
 router.put('/:id/transfer', authMiddleware, requirePermission('students.edit'), async (req, res) => {

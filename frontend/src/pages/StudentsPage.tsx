@@ -14,6 +14,7 @@ import { ViewToggleButton as ViewToggleButtonComp } from '../components/ViewTogg
 
 const ViewToggleButton = ViewToggleButtonComp;
 import { JORDANIAN_UNIVERSITIES, COUNTRY_CODES, normalizeDigits, STUDENT_STATUS_MAP } from '../utils/constants';
+import { notesPlain } from '../utils/studentNotes';
 
 // ==========================================
 // Types
@@ -458,6 +459,7 @@ export const StudentsPage = () => {
   const maxPhones = 3;
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formVersion, setFormVersion] = useState(0);
+  const [origNotes, setOrigNotes] = useState<string | null | undefined>(undefined);
   const nationalIdRef = useRef<HTMLInputElement>(null);
   const universityIdRef = useRef<HTMLInputElement>(null);
 
@@ -702,7 +704,8 @@ export const StudentsPage = () => {
     const nat = s.nationality as 'JO' | 'OTHER';
     setNationality(nat);
     setPhones(parsePhones(s));
-    setForm({ ...s, phones: undefined });
+    setForm({ ...s, phones: undefined, notes: notesPlain(s.notes) });
+    setOrigNotes(s.notes ?? null);
     setIdError('');
     setFormErrors({});
     setFormVersion(prev => prev + 1);
@@ -867,7 +870,7 @@ export const StudentsPage = () => {
           ? (hierarchy.supervisors.find(sup => String(sup.id) === String(selectedSupervisorId))?.employeeId ?? null)
           : undefined,
         registeredByUserId: selectedRegistrarId ? Number(selectedRegistrarId) : undefined,
-        notes: form.notes,
+        notes: form.notes !== notesPlain(origNotes) ? form.notes : undefined,
       };
 
       if (selectedStudent) {

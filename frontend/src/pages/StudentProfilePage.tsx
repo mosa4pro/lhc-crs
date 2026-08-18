@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, User, FileText, Calendar, CreditCard, GraduationCap, Printer, Filter, Image, MessageCircle, ArrowLeftRight, Wallet, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Search, User, FileText, Calendar, CreditCard, GraduationCap, Printer, Filter, Image, MessageCircle, ArrowLeftRight, Wallet, ChevronDown, ChevronUp, X, Plus, AlertTriangle, CheckCircle2, RefreshCw, Info, Send } from 'lucide-react';
 import { useApi, useAuth, fileUrl } from '../context/AuthContext';
 import { DeepSearchModal } from '../components/DeepSearchModal';
 import { LearningTypeBadge, learningTypeLabel, modalityLabel } from '../components/LearningTypeBadge';
@@ -8,6 +8,69 @@ import { useChat } from '../context/ChatContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { formatDate } from '../utils/dateFormat';
 import { printHeaderHTML } from '../utils/print';
+import { useToast } from '../components/Toast';
+import { toNumber, cleanDecimal } from '../utils/arabicNumbers';
+import { normalizeDigits } from '../utils/constants';
+import { parseStudentNotes } from '../utils/studentNotes';
+
+const BL: Record<string, string> = { Jordan_Ahli: 'الأهلي الأردني', Arab_Bank: 'العربي', Housing_Bank: 'الإسكان', Cairo_Amman: 'القاهرة عمان', Jordan_Kuwait: 'الأردني الكويتي', Islamic_Bank: 'الإسلامي الأردني', Safwa_Islamic: 'صفوة الإسلامي', Etihad: 'الاتحاد', Societe_Generale: 'سوسيتيه جنرال', Bank_of_Jordan: 'الأردن', Investbank: 'الاستثمار', Jordan_Commercial: 'التجاري الأردني', ABC: 'ABC', Standard_Chartered: 'ستاندارد تشارترد', BLOM: 'بلوم', Al_Rajhi: 'الراجحي', OTHER: 'آخر' };
+
+// Remaining balance of an installment.
+const remOf = (i: any) => Math.max(0, (i?.amount || 0) - (i?.paidAmount || 0));
+
+// Normalize a reference number: convert Arabic/Persian digits to English and strip
+// invisible bidi/zero-width characters so values typed on any keyboard are comparable.
+const cleanRefVal = (v?: string) => normalizeDigits((v || '').replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')).trim();
+
+// Inline live status under the reference field: checking / taken / available.
+const refStatusLine = (checking: boolean, used: boolean, hasValue: boolean) => {
+  if (!hasValue) return null;
+  if (checking) {
+    return (
+      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <RefreshCw size={10} style={{ animation: 'spin 1s linear infinite' }} /> جارٍ التحقق من توفر الرقم المرجع...
+      </div>
+    );
+  }
+  if (used) {
+    return (
+      <div style={{ fontSize: '0.62rem', color: 'var(--danger)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <AlertTriangle size={10} /> الرقم المرجع مستخدم مسبقاً — أدخل رقماً جديداً
+      </div>
+    );
+  }
+  return (
+    <div style={{ fontSize: '0.62rem', color: 'var(--success)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+      <CheckCircle2 size={10} /> الرقم المرجع متاح
+    </div>
+  );
+};
+
+// Build the distribution plan for a payment amount across the subscription's installments.
+// Used by BOTH the live preview and the submit validation so they can never disagree.
+const buildPayPlan = (amt: number, current: any, installs: any[]) => {
+  const mainRemain = remOf(current);
+  const pool = installs.length > 0 ? installs : [current];
+  const total = pool.reduce((s: number, i: any) => s + remOf(i), 0);
+  let rest = Math.max(0, amt - mainRemain);
+  const targets: { id: number; no: number; totalCount: number; amount: number; remain: number }[] = [];
+  const others = pool.filter(i => i.id !== current.id).sort((a, b) => (a.installmentNumber || 0) - (b.installmentNumber || 0));
+  for (const i of others) {
+    if (rest <= 0) break;
+    const r = remOf(i);
+    if (r <= 0) continue;
+    const paid = Math.min(rest, r);
+    targets.push({ id: i.id, no: i.installmentNumber, totalCount: i.totalInstallments, amount: paid, remain: r });
+    rest -= paid;
+  }
+  return {
+    main: Math.min(amt, mainRemain),
+    excess: Math.max(0, amt - mainRemain),
+    targets,
+    cap: total,
+    over: total > 0 && amt > total,
+  };
+};
 
 const DAY_ABBR: Record<string, string> = {
   SAT: 'السبت', SUN: 'الأحد', MON: 'الإثنين', TUE: 'الثلاثاء',
@@ -62,7 +125,8 @@ const scheduleTime = (sec: any) => {
 
 export const StudentProfilePage = () => {
   const { apiFetch } = useApi();
-  const { centerName, centerNameEn, centerLogo } = useAuth();
+  const { centerName, centerNameEn, centerLogo, user, hasPermission } = useAuth();
+  const toast = useToast();
   const { setPendingShareStudent, setOpen } = useChat();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -77,6 +141,27 @@ export const StudentProfilePage = () => {
   const [openAttSec, setOpenAttSec] = useState<number | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const [printSections, setPrintSections] = useState<Record<string, boolean>>({ subs: true, installments: true, notes: true, schedule: true, attendance: true });
+
+  /* ── Notes log state ── */
+  const [noteText, setNoteText] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+
+  /* ── Quick payment state (mirrors FinInstallmentsPage pay flow) ── */
+  const [payOpen, setPayOpen] = useState(false);
+  const [payInst, setPayInst] = useState<any>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payDest, setPayDest] = useState<'ENTITY' | 'US' | ''>('');
+  const [payMethod, setPayMethod] = useState('CASH');
+  const [paySubMethod, setPaySubMethod] = useState('');
+  const [payBank, setPayBank] = useState('');
+  const [payCheckNum, setPayCheckNum] = useState('');
+  const [payHawalaNum, setPayHawalaNum] = useState('');
+  const [payWalletRef, setPayWalletRef] = useState('');
+  const [payRef, setPayRef] = useState('');
+  const [refUsed, setRefUsed] = useState(false);
+  const [refChecking, setRefChecking] = useState(false);
+  const [payNotes, setPayNotes] = useState('');
+  const [payLoading, setPayLoading] = useState(false);
 
   const togglePrintSection = (key: string) => setPrintSections(prev => ({ ...prev, [key]: !prev[key] }));
   const getPhone = (p: any) => { try { return (typeof p === 'string' ? JSON.parse(p) : p)?.[0] || '—'; } catch { return '—'; } };
@@ -128,6 +213,120 @@ export const StudentProfilePage = () => {
       fullNameAr: selectedStudent.fullNameAr,
     });
     setOpen(true);
+  };
+
+  /* ── Add a note to the student's notes log (author + job title captured server-side) ── */
+  const addNote = async () => {
+    if (!selectedStudent) return;
+    const text = noteText.trim();
+    if (!text) { toast.error('اكتب نص الملاحظة أولاً'); return; }
+    setNoteSaving(true);
+    try {
+      const res = await apiFetch(`/students/${selectedStudent.id}/notes`, { method: 'POST', body: JSON.stringify({ content: text }) });
+      toast.success('تمت إضافة الملاحظة');
+      setNoteText('');
+      const full = await apiFetch(`/students/${selectedStudent.id}`);
+      setSelectedStudent(full);
+      if (res?.notes) setSelectedStudent((prev: any) => ({ ...prev, notes: JSON.stringify(res.notes) }));
+    } catch (err: any) { toast.error('فشل إضافة الملاحظة', err.message); }
+    finally { setNoteSaving(false); }
+  };
+
+  /* ── Quick payment: open modal pre-selected with an installment ── */
+  const openPay = (inst: any) => {
+    setPayInst(inst);
+    setPayAmount('');
+    setPayDest('');
+    setPayMethod('CASH');
+    setPaySubMethod('');
+    setPayBank('');
+    setPayCheckNum('');
+    setPayHawalaNum('');
+    setPayWalletRef('');
+    setPayRef('');
+    setRefUsed(false);
+    setRefChecking(false);
+    setPayNotes('');
+    setPayOpen(true);
+  };
+
+  const closePay = () => setPayOpen(false);
+
+  const paySiblings = (inst: any) => {
+    const all = profile?.installments || [];
+    if (!inst) return [];
+    return all.filter((i: any) => String(i.subscriptionId) === String(inst.subscriptionId) && i.subscriptionType === inst.subscriptionType)
+      .sort((a: any, b: any) => (a.installmentNumber || 0) - (b.installmentNumber || 0));
+  };
+
+  /* ── Live duplicate check on the payment reference ── */
+  useEffect(() => {
+    const ref = cleanRefVal(payRef);
+    if (!ref) { setRefUsed(false); setRefChecking(false); return; }
+    setRefChecking(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiFetch(`/financial/check-reference?ref=${encodeURIComponent(ref)}`);
+        setRefUsed(!!res?.used);
+      } catch { setRefUsed(false); }
+      finally { setRefChecking(false); }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [payRef, apiFetch]);
+
+  /* ── Quick payment submit — same endpoint and rules as the installments page ── */
+  const handleQuickPay = async () => {
+    if (!payInst) return;
+    const amt = toNumber(payAmount);
+    if (!amt || amt <= 0) { toast.error('المبلغ مطلوب'); return; }
+    if (!payDest) { toast.error('اختر جهة الدفع (جهة التعليم أو لدينا)'); return; }
+    const refVal = cleanRefVal(payRef) || cleanRefVal(payWalletRef) || cleanRefVal(payCheckNum) || cleanRefVal(payHawalaNum);
+    if (!refVal) { toast.error('رقم المرجع مطلوب — أدخله بأي لغة'); return; }
+    if (refUsed) { toast.error('رقم المرجع مستخدم مسبقاً في معاملة أخرى — أدخل رقماً جديداً'); return; }
+    if (payDest === 'US') {
+      if (payMethod === 'TRANSFER' && !paySubMethod) { toast.error('يرجى اختيار نوع المحفظة الإلكترونية'); return; }
+      if (payMethod === 'CHECK') { if (!payBank) { toast.error('يرجى اختيار البنك'); return; } if (!payCheckNum.trim()) { toast.error('رقم الشيك مطلوب'); return; } }
+      if (payMethod === 'MONEY_TRANSFER') { if (!paySubMethod) { toast.error('يرجى اختيار نوع الحوالة'); return; } if (!payHawalaNum.trim()) { toast.error('رقم الحوالة مطلوب'); return; } }
+    }
+    const plan = buildPayPlan(amt, payInst, paySiblings(payInst));
+    if (plan.over) {
+      toast.error(`المبلغ (${amt}) أكبر من إجمالي المتبقي على أقساط هذا الاشتراك (${plan.cap.toFixed(2)})`);
+      return;
+    }
+    setPayLoading(true);
+    try {
+      let finalMethod = payMethod;
+      if (payDest === 'ENTITY') {
+        finalMethod = 'ENTITY';
+      } else {
+        if (payMethod === 'TRANSFER') finalMethod = 'WALLET';
+        else if (payMethod === 'MONEY_TRANSFER') finalMethod = 'TRANSFER';
+      }
+      const body: any = {
+        amount: amt,
+        paymentMethod: finalMethod,
+        paymentDest: payDest,
+      };
+      if (refVal) body.referenceNumber = refVal;
+      if (payMethod === 'TRANSFER') { body.paymentSubMethod = paySubMethod; if (payWalletRef) body.paymentWalletRef = payWalletRef; }
+      if (payMethod === 'CHECK') { body.paymentBank = payBank; body.checkNumber = payCheckNum; }
+      if (payMethod === 'MONEY_TRANSFER') { body.paymentSubMethod = paySubMethod; body.hawalaNumber = payHawalaNum; }
+      if (payNotes) body.notes = payNotes;
+
+      const payRes = await apiFetch(`/installments/${payInst.id}/pay`, { method: 'POST', body: JSON.stringify(body) });
+      const dist = Array.isArray(payRes?.distributedTo) && payRes.distributedTo.length > 0 ? payRes.distributedTo : null;
+      if (dist) {
+        const distSum = dist.reduce((s: number, d: any) => s + (d.amount || 0), 0);
+        toast.success('تم تسجيل الدفعة', `خُصم فائض (${distSum.toFixed(2)} د.أ) من ${dist.length} قسط آخر`);
+      } else {
+        toast.success('تم تسجيل الدفعة');
+      }
+      closePay();
+      const [full, fin] = await Promise.all([apiFetch(`/students/${selectedStudent?.id}`), apiFetch(`/financial/student/${selectedStudent?.id}`)]);
+      if (full) setSelectedStudent(full);
+      if (fin) setProfile(fin);
+    } catch (err: any) { toast.error('فشل', err.message); }
+    finally { setPayLoading(false); }
   };
 
   const ins = profile?.installments || [];
@@ -255,7 +454,7 @@ export const StudentProfilePage = () => {
       secs.forEach((item: any) => { const sec = secToDisplay(item); const st = pStats(String(sec.id)); const enroll = item.enrollDate ? pFmtDate(item.enrollDate) : '—'; const isCur = item.status === 'ENROLLED' || item.status === 'ACTIVE'; const td = getTransferDate(sec.id, isCur); const end = td ? pFmtDate(td) : (isCur ? 'الآن' : '—'); html += `<tr><td>${sec.course?.name || sec.diploma?.name || '—'}</td><td>${sec.name || '—'}</td><td>${scheduleDays(sec)}</td><td>${scheduleTime(sec)}</td><td>${enroll}</td><td>${end}</td><td>${st.total}</td><td>${st.present}</td><td>${st.absent + st.late}</td><td>${st.total ? st.pct + '%' : '—'}</td></tr>`; });
       html += `</tbody></table></div>`; }
     }
-    if (printSections.notes && s.notes) { html += `<div class="section"><h4>ملاحظات</h4><p>${s.notes}</p></div>`; }
+    if (printSections.notes && s.notes) { html += `<div class="section"><h4>ملاحظات</h4>${parseStudentNotes(s.notes).map((n, i) => `<p style="white-space:pre-line;margin:4px 0">${(n.content || '').replace(/</g, '&lt;')}</p>`).join('')}</div>`; }
     return html;
   };
 
@@ -377,6 +576,10 @@ export const StudentProfilePage = () => {
                 </button>
                 <button className="glass-btn" onClick={() => navigate(`/installments?studentId=${selectedStudent.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Wallet size={15} /> الأقساط والدفع
+                </button>
+                <button className="glass-btn" onClick={() => { const next = ins.find((i: any) => remOf(i) > 0); if (next) openPay(next); else toast.info('لا توجد أقساط مستحقة', 'جميع الأقساط مسددة'); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--success)', color: '#fff', borderColor: 'var(--success)' }}>
+                  <CreditCard size={15} /> سداد سريع
                 </button>
                 <button className="glass-btn secondary" onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Printer size={15} /> طباعة A4
@@ -530,7 +733,7 @@ export const StudentProfilePage = () => {
               </h4>
               {ins.length > 0 ? (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                  <thead><tr><th style={thStyle}>القسط</th><th style={thStyle}>المبلغ</th><th style={thStyle}>تاريخ الاستحقاق</th><th style={thStyle}>جهة الدفع</th><th style={thStyle}>الحالة</th></tr></thead>
+                  <thead><tr><th style={thStyle}>القسط</th><th style={thStyle}>المبلغ</th><th style={thStyle}>تاريخ الاستحقاق</th><th style={thStyle}>جهة الدفع</th><th style={thStyle}>الحالة</th><th style={thStyle}>دفع</th></tr></thead>
                   <tbody>{ins.slice(0, 8).map((inst: any) => (
                     <tr key={inst.id}>
                       <td style={tdStyle}>قسط {inst.installmentNumber}</td>
@@ -552,6 +755,14 @@ export const StudentProfilePage = () => {
                         <span className={`badge ${inst.status === 'PAID' ? 'success' : inst.status === 'OVERDUE' ? 'danger' : 'warning'}`}>
                           {inst.status === 'PAID' ? 'مدفوع' : inst.status === 'OVERDUE' ? 'متأخر' : 'معلق'}
                         </span>
+                      </td>
+                      <td style={{ ...tdStyle, width: 70 }}>
+                        {remOf(inst) > 0 ? (
+                          <button onClick={() => openPay(inst)}
+                            style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, transition: 'all 0.15s' }}>
+                            <CreditCard size={12} /> دفع
+                          </button>
+                        ) : <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>—</span>}
                       </td>
                     </tr>
                   ))}</tbody>
@@ -705,16 +916,41 @@ export const StudentProfilePage = () => {
 
             {printSections.notes && (
             <div className="glass-panel" style={{ padding: '18px 22px' }}>
-                <h4 style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.95rem' }}>
+                <h4 style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.95rem' }}>
                   <FileText size={17} color="var(--text-muted)" /> ملاحظات
+                  <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 400 }}>يظهر اسم الكاتب وصفته في النظام فقط — لا يظهران في الطباعة</span>
                 </h4>
-                {selectedStudent.notes ? (
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>{selectedStudent.notes}</p>
-                ) : (
-                  <div style={{ textAlign: 'center', padding: '12px 0', opacity: 0.35 }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>لا توجد ملاحظات</p>
-                  </div>
-                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  {parseStudentNotes(selectedStudent.notes).length > 0 ? parseStudentNotes(selectedStudent.notes).map((n, i) => (
+                    <div key={i} style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 10, padding: '9px 12px' }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{n.content}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                        {n.authorName ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.68rem', color: 'var(--secondary)', background: 'rgba(13,148,136,0.1)', border: '1px solid rgba(13,148,136,0.25)', padding: '2px 8px', borderRadius: 999, fontWeight: 600 }}>
+                            <User size={11} /> {n.authorName}
+                            {n.authorJobTitle ? <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>— {n.authorJobTitle}</span> : null}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>ملاحظة قديمة</span>
+                        )}
+                        {n.createdAt && <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>{formatDate(n.createdAt)}</span>}
+                      </div>
+                    </div>
+                  )) : (
+                    <div style={{ textAlign: 'center', padding: '12px 0', opacity: 0.35 }}>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>لا توجد ملاحظات</p>
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input type="text" className="glass-input" style={{ flex: 1, fontSize: '0.8rem' }} value={noteText}
+                    onInput={e => setNoteText((e.target as HTMLInputElement).value)}
+                    placeholder="أضف ملاحظة جديدة..." />
+                  <button className="glass-btn" onClick={addNote} disabled={noteSaving || !noteText.trim()}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+                    <Send size={14} /> {noteSaving ? 'جارٍ الإضافة...' : 'إضافة'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -768,6 +1004,185 @@ export const StudentProfilePage = () => {
                 </button>
                 <button className="glass-btn secondary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.8rem' }} onClick={() => setShowCard(false)}>إغلاق</button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Quick payment modal — same steps/principle as the installments page ── */}
+        {payOpen && payInst && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+            onClick={closePay}>
+            <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card-bg)', borderRadius: 16, padding: 20, width: 520, maxWidth: '100%', maxHeight: '92vh', overflowY: 'auto', color: 'var(--text)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <CreditCard size={17} color="var(--success)" />
+                  <strong style={{ fontSize: '0.95rem' }}>سداد سريع — {selectedStudent?.fullNameAr}</strong>
+                </div>
+                <button onClick={closePay} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4 }}>
+                  <X size={16} />
+                </button>
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 14 }}>
+                قسط #{payInst.installmentNumber}/{payInst.totalInstallments} — المتبقي: <strong style={{ color: 'var(--danger)', fontFamily: 'monospace' }}>{remOf(payInst).toFixed(3)} د</strong>
+                {' · '}استحقاق {formatDate(payInst.dueDate)}
+              </div>
+
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 600, marginBottom: 4 }}>المبلغ (د.أ) <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={payAmount}
+                  onInput={e => setPayAmount(cleanDecimal((e.target as HTMLInputElement).value))} style={{ direction: 'ltr', fontSize: '0.82rem', fontWeight: 600 }} />
+                {(() => {
+                  const v = toNumber(payAmount);
+                  if (payAmount.trim() && !(v > 0)) {
+                    return (
+                      <div style={{ fontSize: '0.66rem', color: 'var(--danger)', marginTop: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <AlertTriangle size={11} /> لم يُحتسب المبلغ المدخل — تأكد من كتابة رقم صحيح
+                      </div>
+                    );
+                  }
+                  if (!v || v <= 0) return null;
+                  const plan = buildPayPlan(v, payInst, paySiblings(payInst));
+                  const balance = remOf(payInst);
+                  if (plan.over) {
+                    return (
+                      <div style={{ fontSize: '0.66rem', color: 'var(--danger)', marginTop: 6, padding: '7px 9px', borderRadius: 8, background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+                        <span>المبلغ ({v.toFixed(2)} د.أ) يتجاوز إجمالي المتبقي على أقساط هذا الاشتراك ({plan.cap.toFixed(2)} د.أ) — لن تُقبل الدفعة</span>
+                      </div>
+                    );
+                  }
+                  if (plan.excess <= 0) {
+                    const full = v >= balance;
+                    return (
+                      <div style={{ fontSize: '0.66rem', color: full ? 'var(--success)' : 'var(--text-muted)', marginTop: 6, padding: '7px 9px', borderRadius: 8, background: full ? 'rgba(22,163,74,0.08)' : 'var(--glass-bg)', border: `1px solid ${full ? 'rgba(22,163,74,0.25)' : 'var(--glass-border)'}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <CheckCircle2 size={13} style={{ flexShrink: 0 }} />
+                        <span>{full ? `سيُسدَّد هذا القسط بالكامل (${v.toFixed(2)} د.أ)` : `دفعة جزئية على هذا القسط — المتبقي بعدها (${(balance - v).toFixed(2)} د.أ)`}</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ fontSize: '0.66rem', marginTop: 6, padding: '8px 10px', borderRadius: 8, background: 'rgba(13,148,136,0.08)', border: '1px solid rgba(13,148,136,0.28)', color: 'var(--text-primary)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 5 }}>
+                        <Info size={13} color="var(--secondary)" style={{ flexShrink: 0 }} />
+                        <span>سيُسدَّد هذا القسط بالكامل ({plan.main.toFixed(2)} د.أ) ويُوزَّع الفائض ({plan.excess.toFixed(2)} د.أ) على {plan.targets.length} قسط آخر:</span>
+                      </div>
+                      {plan.targets.map((t: any) => (
+                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '2px 0', fontSize: '0.63rem', borderTop: '1px dashed rgba(13,148,136,0.2)' }}>
+                          <span>قسط #{t.no}/{t.totalCount} — المتبقي ({t.remain.toFixed(2)})</span>
+                          <span style={{ fontWeight: 700, color: 'var(--secondary)', fontFamily: 'monospace', direction: 'ltr' }}>{t.amount.toFixed(2)} د.أ</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                {[{ value: 'ENTITY', label: '🏫 جهة التعليم' }, { value: 'US', label: '🏢 لدينا' }].map(opt => (
+                  <button key={opt.value} type="button"
+                    onClick={() => { setPayDest(opt.value as 'ENTITY' | 'US'); setPayMethod('CASH'); setPaySubMethod(''); setPayBank(''); setPayCheckNum(''); setPayHawalaNum(''); }}
+                    style={{
+                      flex: 1, padding: '8px 10px', borderRadius: 9, border: '1.5px solid', cursor: 'pointer',
+                      fontWeight: 600, fontSize: '0.74rem', transition: 'all .2s',
+                      background: payDest === opt.value ? 'var(--primary)' : 'transparent',
+                      color: payDest === opt.value ? '#fff' : 'var(--text)',
+                      borderColor: payDest === opt.value ? 'var(--primary)' : (!payDest ? 'var(--danger)' : 'var(--glass-border)'),
+                    }}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {!payDest && <div style={{ fontSize: '0.64rem', color: 'var(--danger)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={11} /> مطلوب — اختر جهة الدفع</div>}
+
+              {payDest === 'ENTITY' ? (<>
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 600, marginBottom: 4 }}>رقم المرجع <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input type="text" className={`glass-input ${refUsed ? 'error-field' : ''}`} value={payRef} onInput={e => setPayRef(normalizeDigits((e.target as HTMLInputElement).value))} placeholder="رقم الإيصال — يُقبل بأي لغة" style={{ fontSize: '0.8rem' }} />
+                  {refStatusLine(refChecking, refUsed, !!cleanRefVal(payRef))}
+                </div>
+              </>) : (<>
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 600, marginBottom: 4 }}>طريقة الدفع <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <select className="glass-input" value={payMethod} onChange={e => { setPayMethod(e.target.value); setPaySubMethod(''); setPayBank(''); setPayCheckNum(''); setPayHawalaNum(''); }} style={{ fontSize: '0.8rem' }}>
+                    <option value="CASH">💰 نقداً</option>
+                    <option value="TRANSFER">📲 إلكتروني</option>
+                    <option value="CHECK">📄 شيك</option>
+                    <option value="MONEY_TRANSFER">🌍 حوالة مالية</option>
+                  </select>
+                </div>
+
+                {payMethod === 'TRANSFER' && (<>
+                  <div style={{ marginBottom: 10, padding: '9px 11px', background: 'var(--glass-bg)', borderRadius: 8, border: '1px solid var(--glass-border)' }}>
+                    <div style={{ marginBottom: 6 }}>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, marginBottom: 3 }}>نوع المحفظة الإلكترونية <span style={{ color: 'var(--danger)' }}>*</span></label>
+                      <select className="glass-input" value={paySubMethod} onChange={e => setPaySubMethod(e.target.value)} style={{ fontSize: '0.74rem', padding: '5px 8px' }}>
+                        <option value="">— اختر المحفظة —</option>
+                        <option value="CLICK">Click كليك</option>
+                        <option value="ZAIN_CASH">زين كاش (Zain Cash)</option>
+                        <option value="ORANGE_MONEY">اورنج موني (Orange Money)</option>
+                        <option value="U_WALLET">محفظة أمنية (UWallet)</option>
+                        <option value="DINARAK">دينارك (Dinarak)</option>
+                        <option value="ALAWNEH">علاونة</option>
+                        <option value="FAWATEERKOM">فواتيركم (مدفوعاتكم)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, marginBottom: 3 }}>رقم الحوالة</label>
+                      <input type="text" className="glass-input" value={payWalletRef} onChange={e => setPayWalletRef(normalizeDigits(e.target.value))} placeholder="اختياري — رقم العملية من المحفظة" style={{ fontSize: '0.74rem', padding: '5px 8px', direction: 'ltr' }} />
+                    </div>
+                  </div>
+                </>)}
+
+                {payMethod === 'CHECK' && (<>
+                  <div style={{ marginBottom: 10, padding: '9px 11px', background: 'var(--glass-bg)', borderRadius: 8, border: '1px solid var(--glass-border)' }}>
+                    <div style={{ marginBottom: 6 }}>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, marginBottom: 3 }}>البنك <span style={{ color: 'var(--danger)' }}>*</span></label>
+                      <select className="glass-input" value={payBank} onChange={e => setPayBank(e.target.value)} style={{ fontSize: '0.74rem', padding: '5px 8px' }}>
+                        <option value="">— اختر البنك —</option>
+                        {Object.entries(BL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, marginBottom: 3 }}>رقم الشيك <span style={{ color: 'var(--danger)' }}>*</span></label>
+                      <input type="text" className="glass-input" value={payCheckNum} onChange={e => setPayCheckNum(normalizeDigits(e.target.value))} placeholder="رقم الشيك" style={{ fontSize: '0.74rem', padding: '5px 8px', direction: 'ltr' }} />
+                    </div>
+                  </div>
+                </>)}
+
+                {payMethod === 'MONEY_TRANSFER' && (<>
+                  <div style={{ marginBottom: 10, padding: '9px 11px', background: 'var(--glass-bg)', borderRadius: 8, border: '1px solid var(--glass-border)' }}>
+                    <div style={{ marginBottom: 6 }}>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, marginBottom: 3 }}>نوع الحوالة المالية <span style={{ color: 'var(--danger)' }}>*</span></label>
+                      <select className="glass-input" value={paySubMethod} onChange={e => setPaySubMethod(e.target.value)} style={{ fontSize: '0.74rem', padding: '5px 8px' }}>
+                        <option value="">— اختر نوع الحوالة —</option>
+                        <option value="WESTERN_UNION">ويسترن يونيون (Western Union)</option>
+                        <option value="MONEYGRAM">MoneyGram</option>
+                        <option value="RIA_MONEY">RIA Money</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, marginBottom: 3 }}>رقم الحوالة <span style={{ color: 'var(--danger)' }}>*</span></label>
+                      <input type="text" className="glass-input" value={payHawalaNum} onChange={e => setPayHawalaNum(normalizeDigits(e.target.value))} placeholder="رقم الحوالة المالية" style={{ fontSize: '0.74rem', padding: '5px 8px', direction: 'ltr' }} />
+                    </div>
+                  </div>
+                </>)}
+
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 600, marginBottom: 4 }}>رقم المرجع <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input type="text" className={`glass-input ${refUsed ? 'error-field' : ''}`} value={payRef} onInput={e => setPayRef(normalizeDigits((e.target as HTMLInputElement).value))} placeholder="رقم الإيصال أو التحويل — يُقبل بأي لغة" style={{ fontSize: '0.8rem' }} />
+                  {refStatusLine(refChecking, refUsed, !!cleanRefVal(payRef))}
+                </div>
+              </>)}
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 600, marginBottom: 4 }}>ملاحظات الدفع</label>
+                <input type="text" className="glass-input" value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="أي ملاحظات إضافية..." style={{ fontSize: '0.8rem' }} />
+              </div>
+
+              <button className="glass-btn" onClick={handleQuickPay} disabled={payLoading || (toNumber(payAmount) > 0 && buildPayPlan(toNumber(payAmount), payInst, paySiblings(payInst)).over)}
+                style={{ width: '100%', justifyContent: 'center', background: 'var(--success)', color: '#fff', borderColor: 'var(--success)', fontSize: '0.8rem', ...(toNumber(payAmount) > 0 && buildPayPlan(toNumber(payAmount), payInst, paySiblings(payInst)).over ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}>
+                {payLoading ? 'جارٍ تسجيل الدفعة...' : (toNumber(payAmount) > 0 && buildPayPlan(toNumber(payAmount), payInst, paySiblings(payInst)).over ? 'المبلغ غير مقبول — أعلى من المتبقي' : `تسديد ${toNumber(payAmount).toFixed(2)} د.أ`)}
+              </button>
             </div>
           </div>
         )}
