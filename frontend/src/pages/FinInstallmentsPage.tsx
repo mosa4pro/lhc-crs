@@ -475,8 +475,8 @@ export const FinInstallmentsPage = () => {
     const amt = toNumber(payAmount);
     if (!amt || amt <= 0) { toast.error('المبلغ مطلوب'); return; }
     if (!payDest) { toast.error('اختر جهة الدفع (جهة التعليم أو لدينا)'); return; }
-    const refVal = payRef.trim() || payWalletRef?.trim() || payCheckNum?.trim() || payHawalaNum?.trim();
-    if (!refVal) { toast.error('رقم المرجع مطلوب'); return; }
+    const cleanRef = (v?: string) => (v || '').replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '').trim();
+    const refVal = cleanRef(payRef) || cleanRef(payWalletRef) || cleanRef(payCheckNum) || cleanRef(payHawalaNum);
     if (payDest === 'US') {
       if (payMethod === 'TRANSFER' && !paySubMethod) { toast.error('يرجى اختيار نوع المحفظة الإلكترونية'); return; }
       if (payMethod === 'CHECK') { if (!payBank) { toast.error('يرجى اختيار البنك'); return; } if (!payCheckNum.trim()) { toast.error('رقم الشيك مطلوب'); return; } }
@@ -500,8 +500,8 @@ export const FinInstallmentsPage = () => {
         amount: amt,
         paymentMethod: finalMethod,
         paymentDest: payDest,
-        referenceNumber: refVal,
       };
+      if (refVal) body.referenceNumber = refVal;
       if (payMethod === 'TRANSFER') { body.paymentSubMethod = paySubMethod; if (payWalletRef) body.paymentWalletRef = payWalletRef; }
       if (payMethod === 'CHECK') { body.paymentBank = payBank; body.checkNumber = payCheckNum; }
       if (payMethod === 'MONEY_TRANSFER') { body.paymentSubMethod = paySubMethod; body.hawalaNumber = payHawalaNum; }
@@ -952,8 +952,8 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
 
                             {payDest === 'ENTITY' ? (<>
                               <div className="form-group" style={{ marginBottom: 8 }}>
-                                <label style={gl}>رقم المرجع <span style={rq}>*</span></label>
-                                <input type="text" className="glass-input" value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="رقم الإيصال" style={{ fontSize: '0.8rem' }} />
+                                <label style={gl}>رقم المرجع <span style={{ ...rq, color: 'var(--text-muted)' }}>(اختياري)</span></label>
+                                <input type="text" className="glass-input" value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="رقم الإيصال — يُولَّد تلقائياً إن تُرك فارغاً" style={{ fontSize: '0.8rem' }} />
                               </div>
                             </>) : (<>
                               <div className="form-group" style={{ marginBottom: 8 }}>
@@ -1028,9 +1028,9 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                               </>)}
 
                               <div className="form-group" style={{ marginBottom: 8 }}>
-                                <label style={gl}>رقم المرجع <span style={rq}>*</span></label>
+                                <label style={gl}>رقم المرجع <span style={{ ...rq, color: 'var(--text-muted)' }}>(اختياري)</span></label>
                                 <input type="text" className="glass-input" value={payRef} onChange={e => setPayRef(e.target.value)}
-                                  placeholder="إلزامي — رقم الإيصال أو التحويل" style={{ fontSize: '0.8rem' }} />
+                                  placeholder="رقم الإيصال أو التحويل — يُولَّد تلقائياً إن تُرك فارغاً" style={{ fontSize: '0.8rem' }} />
                               </div>
                             </>)}
 

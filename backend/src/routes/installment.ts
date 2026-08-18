@@ -362,6 +362,12 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
     const remaining = Math.max(0, installment.amount - newPaid);
     const newStatus = remaining === 0 ? 'PAID' : (newPaid > 0 ? 'PARTIAL' : installment.status);
 
+    // Auto-generate a receipt number up-front and use it as the reference fallback
+    // so every payment is always traceable and never blocked by a missing reference.
+    const actingUser = (req as any).user;
+    const receiptNumber = await generateReceiptNumber('RECEIPT');
+    const finalRef = referenceNumber || receiptNumber;
+
     const updated = await prisma.installment.update({
       where: { id: parseInt(req.params.id as string) },
       data: {
@@ -370,7 +376,7 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
         status: newStatus,
         paymentDate: newStatus === 'PAID' ? new Date() : installment.paymentDate,
         paymentMethod: paymentMethod || 'CASH',
-        referenceNumber: referenceNumber || installment.referenceNumber,
+        referenceNumber: finalRef,
         paymentWallet: paymentWallet || installment.paymentWallet,
         paymentBank: paymentBank || installment.paymentBank,
         senderInfo: senderInfo || installment.senderInfo,
@@ -384,9 +390,6 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
     });
 
     // Create financial transaction record(s)
-    const actingUser = (req as any).user;
-    const receiptNumber = await generateReceiptNumber('RECEIPT');
-
     // Main receipt for net amount (payAmount - expenses)
     await prisma.financialTransaction.create({
       data: {
@@ -399,7 +402,7 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
         paymentMethod: paymentMethod || 'CASH',
         status: 'COMPLETED',
         receiptNumber,
-        referenceNumber: referenceNumber || null,
+        referenceNumber: finalRef,
         notes: notes || `دفع قسط ${installment.installmentNumber}/${installment.totalInstallments}`,
         paymentWallet: paymentMethod === 'WALLET' ? (paymentWallet || null) : null,
         paymentBank: paymentMethod === 'CLICK' ? (paymentBank || null) : null,
