@@ -428,7 +428,11 @@ router.get('/student/:studentId', authMiddleware, selfOrPerm('finance.view'), as
 // warn the user live before they submit.
 router.get('/check-reference', authMiddleware, async (req, res) => {
   try {
-    const ref = String((req.query.ref as string) || '').replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '').trim();
+    const ref = String((req.query.ref as string) || '')
+      .replace(/[\u0660-\u0669]/g, d => String.fromCharCode(d.charCodeAt(0) - 0x0660 + 48))
+      .replace(/[\u06f0-\u06f9]/g, d => String.fromCharCode(d.charCodeAt(0) - 0x06f0 + 48))
+      .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '')
+      .trim();
     if (!ref) return res.json({ used: false });
     const found = await prisma.financialTransaction.findFirst({ where: { referenceNumber: ref } });
     return res.json({ used: !!found });
