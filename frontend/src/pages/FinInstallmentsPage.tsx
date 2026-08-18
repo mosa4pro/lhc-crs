@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Search, CreditCard, Plus, X, RefreshCw,
   Clock, FileText, Trash2, Save, Printer,
-  Calendar, AlertTriangle, Award, Minus,
+  Calendar, AlertTriangle, Award, Minus, Info,
   ChevronLeft, ChevronRight, Undo2, ExternalLink, Wallet, Banknote, GraduationCap, BookOpen, CheckCircle2
 } from 'lucide-react';
 import { useApi, useAuth } from '../context/AuthContext';
@@ -484,8 +484,9 @@ export const FinInstallmentsPage = () => {
       if (payMethod === 'MONEY_TRANSFER') { if (!paySubMethod) { toast.error('يرجى اختيار نوع الحوالة'); return; } if (!payHawalaNum.trim()) { toast.error('رقم الحوالة مطلوب'); return; } }
     }
     const balance = remOf(detail);
-    if (balance > 0 && amt > balance) {
-      toast.error(`المبلغ (${amt}) أكبر من المتبقي على هذا القسط (${balance.toFixed(2)})`);
+    const cap = subInstalls.length > 0 ? subInstalls.reduce((s, i) => s + remOf(i), 0) : balance;
+    if (cap > 0 && amt > cap) {
+      toast.error(`المبلغ (${amt}) أكبر من إجمالي المتبقي على أقساط هذا الاشتراك (${cap.toFixed(2)})`);
       return;
     }
     setPayLoading(true);
@@ -508,8 +509,16 @@ export const FinInstallmentsPage = () => {
       if (payMethod === 'MONEY_TRANSFER') { body.paymentSubMethod = paySubMethod; body.hawalaNumber = payHawalaNum; }
       if (payNotes) body.notes = payNotes;
 
-      await apiFetch(`/installments/${detail.id}/pay`, { method: 'POST', body: JSON.stringify(body) });
-      toast.success('تم تسجيل الدفعة');
+      const payRes = await apiFetch(`/installments/${detail.id}/pay`, { method: 'POST', body: JSON.stringify(body) });
+      const dist = Array.isArray(payRes?.distributedTo) && payRes.distributedTo.length > 0
+        ? payRes.distributedTo
+        : null;
+      if (dist) {
+        const distSum = dist.reduce((s: number, d: any) => s + (d.amount || 0), 0);
+        toast.success(`تم تسجيل الدفعة — خُصم فائض (${distSum.toFixed(2)} د.أ) من ${dist.length} قسط آخر`);
+      } else {
+        toast.success('تم تسجيل الدفعة');
+      }
       resetPay();
       refreshDetail(); refreshWorkspace();
     } catch (err: any) { toast.error('فشل', err.message); }
@@ -919,6 +928,26 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                               <label style={gl}>المبلغ (د.أ) <span style={rq}>*</span></label>
                               <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={payAmount}
                                 onChange={e => setPayAmount(normalizeDigits(e.target.value))} style={{ direction: 'ltr', fontSize: '0.8rem', fontWeight: 600 }} />
+                              {(() => {
+                                const b = remOf(detail);
+                                const c = subInstalls.length > 0 ? subInstalls.reduce((s, i) => s + remOf(i), 0) : b;
+                                const v = toNumber(payAmount);
+                                if (b > 0 && v > b && v <= c) {
+                                  return (
+                                    <div style={{ fontSize: '0.64rem', color: 'var(--secondary)', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <Info size={11} /> فائض {(v - b).toFixed(2)} د.أ سيُخصم تلقائياً من أقساط الاشتراك الأخرى
+                                    </div>
+                                  );
+                                }
+                                if (c > 0 && v > c) {
+                                  return (
+                                    <div style={{ fontSize: '0.64rem', color: 'var(--danger)', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <AlertTriangle size={11} /> المبلغ أكبر من إجمالي المتبقي ({c.toFixed(2)} د.أ) — لن تُقبل الدفعة
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
 
                             <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>

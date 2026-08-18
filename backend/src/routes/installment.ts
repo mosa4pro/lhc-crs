@@ -375,13 +375,50 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
     const receiptNumber = await generateReceiptNumber('RECEIPT');
     const finalRefWithFallback = finalRef || receiptNumber;
 
+    // Fetch the unpaid sibling installments of the same subscription so any excess
+    // payment is automatically deducted from the other installments of the same plan.
+    const siblings = await prisma.installment.findMany({
+      where: {
+        studentId: installment.studentId,
+        subscriptionId: installment.subscriptionId,
+        subscriptionType: installment.subscriptionType,
+        status: { not: 'PAID' },
+      },
+      orderBy: { installmentNumber: 'asc' },
+    });
+
+    const totalRemaining = siblings.reduce((s, i) => s + (i.amount - i.paidAmount), 0);
+
+    if (netAmount > totalRemaining + 0.001) {
+      return res.status(400).json({
+        error: `المبلغ (${netAmount.toFixed(2)}) أكبر من إجمالي المتبقي على أقساط هذا الاشتراك (${totalRemaining.toFixed(2)})`
+      });
+    }
+
+    // Allocate the net amount across installments, starting with the selected one.
+    let toAllocate = netAmount;
+    const allocations: { inst: any; paid: number }[] = [];
+    for (const inst of [installment, ...siblings.filter(s => s.id !== installment.id)]) {
+      if (toAllocate <= 0) break;
+      const rem = inst.amount - inst.paidAmount;
+      if (rem <= 0) continue;
+      const paid = Math.min(toAllocate, rem);
+      allocations.push({ inst, paid });
+      toAllocate -= paid;
+    }
+
+    const mainAlloc = allocations.find(a => a.inst.id === installment.id)?.paid || 0;
+    const mainPaid = installment.paidAmount + mainAlloc;
+    const mainRemaining = Math.max(0, installment.amount - mainPaid);
+    const mainStatus = mainRemaining === 0 ? 'PAID' : (mainPaid > 0 ? 'PARTIAL' : installment.status);
+
     const updated = await prisma.installment.update({
       where: { id: parseInt(req.params.id as string) },
       data: {
-        paidAmount: newPaid,
-        remainingAmount: remaining,
-        status: newStatus,
-        paymentDate: newStatus === 'PAID' ? new Date() : installment.paymentDate,
+        paidAmount: mainPaid,
+        remainingAmount: mainRemaining,
+        status: mainStatus,
+        paymentDate: mainStatus === 'PAID' ? new Date() : installment.paymentDate,
         paymentMethod: paymentMethod || 'CASH',
         referenceNumber: finalRefWithFallback,
         paymentWallet: paymentWallet || installment.paymentWallet,
@@ -397,30 +434,89 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
     });
 
     // Create financial transaction record(s)
-    // Main receipt for net amount (payAmount - expenses)
-    await prisma.financialTransaction.create({
-      data: {
-        studentId: installment.studentId,
-        subscriptionId: installment.subscriptionId,
-        subscriptionType: installment.subscriptionType,
-        installmentId: installment.id,
-        type: 'RECEIPT',
-        amount: netAmount,
-        paymentMethod: paymentMethod || 'CASH',
-        status: 'COMPLETED',
-        receiptNumber,
-        referenceNumber: finalRefWithFallback,
-        notes: notes || `دفع قسط ${installment.installmentNumber}/${installment.totalInstallments}`,
-        paymentWallet: paymentMethod === 'WALLET' ? (paymentWallet || null) : null,
-        paymentBank: paymentMethod === 'CLICK' ? (paymentBank || null) : null,
-        senderInfo: paymentMethod === 'CLICK' ? (senderInfo || null) : null,
-        paymentDest: paymentDest || null,
-        paymentSubMethod: paymentSubMethod || null,
-        paymentWalletRef: paymentWalletRef || null,
-        checkNumber: checkNumber || null,
-        hawalaNumber: hawalaNumber || null,
-      }
-    });
+    // Main receipt for the selected installment
+    if (mainAlloc > 0) {
+      await prisma.financialTransaction.create({
+        data: {
+          studentId: installment.studentId,
+          subscriptionId: installment.subscriptionId,
+          subscriptionType: installment.subscriptionType,
+          installmentId: installment.id,
+          type: 'RECEIPT',
+          amount: mainAlloc,
+          paymentMethod: paymentMethod || 'CASH',
+          status: 'COMPLETED',
+          receiptNumber,
+          referenceNumber: finalRefWithFallback,
+          notes: notes || `دفع قسط ${installment.installmentNumber}/${installment.totalInstallments}`,
+          paymentWallet: paymentMethod === 'WALLET' ? (paymentWallet || null) : null,
+          paymentBank: paymentMethod === 'CLICK' ? (paymentBank || null) : null,
+          senderInfo: paymentMethod === 'CLICK' ? (senderInfo || null) : null,
+          paymentDest: paymentDest || null,
+          paymentSubMethod: paymentSubMethod || null,
+          paymentWalletRef: paymentWalletRef || null,
+          checkNumber: checkNumber || null,
+          hawalaNumber: hawalaNumber || null,
+        }
+      });
+    }
+
+    // Apply the excess to the other installments of the same subscription
+    const distributedTo: { id: number; amount: number; status: string }[] = [];
+    for (const { inst, paid } of allocations) {
+      if (inst.id === installment.id) continue;
+      const sibPaid = inst.paidAmount + paid;
+      const sibRemaining = Math.max(0, inst.amount - sibPaid);
+      const sibStatus = sibRemaining === 0 ? 'PAID' : 'PARTIAL';
+      await prisma.installment.update({
+        where: { id: inst.id },
+        data: {
+          paidAmount: sibPaid,
+          remainingAmount: sibRemaining,
+          status: sibStatus,
+          paymentDate: sibStatus === 'PAID' ? new Date() : inst.paymentDate,
+          paymentMethod: paymentMethod || 'CASH',
+          referenceNumber: finalRefWithFallback,
+          paymentWallet: paymentWallet || inst.paymentWallet,
+          paymentBank: paymentBank || inst.paymentBank,
+          senderInfo: senderInfo || inst.senderInfo,
+          paymentDest: paymentDest || inst.paymentDest,
+          paymentSubMethod: paymentSubMethod || inst.paymentSubMethod,
+          paymentWalletRef: paymentWalletRef || inst.paymentWalletRef,
+          checkNumber: checkNumber || inst.checkNumber,
+          hawalaNumber: hawalaNumber || inst.hawalaNumber,
+          notes: notes || inst.notes
+        }
+      });
+      const subReceipt = await generateReceiptNumber('RECEIPT');
+      const subNote = notes
+        ? `دفع من فائض قسط #${installment.installmentNumber} — ${notes}`
+        : `دفع من فائض قسط #${installment.installmentNumber}`;
+      await prisma.financialTransaction.create({
+        data: {
+          studentId: inst.studentId,
+          subscriptionId: inst.subscriptionId,
+          subscriptionType: inst.subscriptionType,
+          installmentId: inst.id,
+          type: 'RECEIPT',
+          amount: paid,
+          paymentMethod: paymentMethod || 'CASH',
+          status: 'COMPLETED',
+          receiptNumber: subReceipt,
+          referenceNumber: finalRefWithFallback,
+          notes: subNote,
+          paymentWallet: paymentMethod === 'WALLET' ? (paymentWallet || null) : null,
+          paymentBank: paymentMethod === 'CLICK' ? (paymentBank || null) : null,
+          senderInfo: paymentMethod === 'CLICK' ? (senderInfo || null) : null,
+          paymentDest: paymentDest || null,
+          paymentSubMethod: paymentSubMethod || null,
+          paymentWalletRef: paymentWalletRef || null,
+          checkNumber: checkNumber || null,
+          hawalaNumber: hawalaNumber || null,
+        }
+      });
+      distributedTo.push({ id: inst.id, amount: paid, status: sibStatus });
+    }
 
     // Separate expense transaction if there are expenses
     if (expensesAmount > 0) {
@@ -448,11 +544,11 @@ router.post('/:id/pay', authMiddleware, requirePermission('finance.installments'
         userId: actingUser.id,
         action: 'PAY',
         entity: 'Installment',
-        details: JSON.stringify({ installmentId: (req.params.id as string), amount: payAmount, netAmount, expenses: expensesAmount, paymentMethod })
+        details: JSON.stringify({ installmentId: (req.params.id as string), amount: payAmount, netAmount, expenses: expensesAmount, paymentMethod, distributedTo })
       }
     });
 
-    return res.json(updated);
+    return res.json({ ...updated, distributedTo });
   } catch (err: any) {
     console.error(err);
     return res.status(400).json({ error: err.message || 'فشل دفع القسط' });
