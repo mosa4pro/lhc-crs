@@ -36,6 +36,32 @@ const CAT_MAP = Object.fromEntries(CATEGORIES.map(c => [c.value, c])) as Record<
 const subName = (sub: Sub) => sub.diploma?.name || sub.course?.name || `#${sub.id}`;
 const getPhone = (p: any) => { try { return (typeof p === 'string' ? JSON.parse(p) : p)?.[0] || '—'; } catch { return '—'; } };
 const remOf = (i: Inst) => Math.max(0, (i.amount || 0) - (i.paidAmount || 0));
+
+// Build the distribution plan for a payment amount across the subscription's installments.
+// Used by BOTH the live preview and the submit validation so they can never disagree.
+const buildPayPlan = (amt: number, current: Inst, installs: Inst[]) => {
+  const mainRemain = remOf(current);
+  const pool = installs.length > 0 ? installs : [current];
+  const total = pool.reduce((s, i) => s + remOf(i), 0);
+  let rest = Math.max(0, amt - mainRemain);
+  const targets: { id: number; no: number; totalCount: number; amount: number; remain: number }[] = [];
+  const others = pool.filter(i => i.id !== current.id).sort((a, b) => (a.installmentNumber || 0) - (b.installmentNumber || 0));
+  for (const i of others) {
+    if (rest <= 0) break;
+    const r = remOf(i);
+    if (r <= 0) continue;
+    const paid = Math.min(rest, r);
+    targets.push({ id: i.id, no: i.installmentNumber, totalCount: i.totalInstallments, amount: paid, remain: r });
+    rest -= paid;
+  }
+  return {
+    main: Math.min(amt, mainRemain),
+    excess: Math.max(0, amt - mainRemain),
+    targets,
+    cap: total,
+    over: total > 0 && amt > total,
+  };
+};
 const catLabel = (inst: Inst) => {
   if (inst.subscriptionType !== 'EXTRA') return null;
   return CATEGORIES.find(c => inst.subscriptionId === `EXTRA-${c.value}`);
@@ -484,9 +510,9 @@ export const FinInstallmentsPage = () => {
       if (payMethod === 'MONEY_TRANSFER') { if (!paySubMethod) { toast.error('يرجى اختيار نوع الحوالة'); return; } if (!payHawalaNum.trim()) { toast.error('رقم الحوالة مطلوب'); return; } }
     }
     const balance = remOf(detail);
-    const cap = subInstalls.length > 0 ? subInstalls.reduce((s, i) => s + remOf(i), 0) : balance;
-    if (cap > 0 && amt > cap) {
-      toast.error(`المبلغ (${amt}) أكبر من إجمالي المتبقي على أقساط هذا الاشتراك (${cap.toFixed(2)})`);
+    const plan = buildPayPlan(amt, detail, subInstalls);
+    if (plan.over) {
+      toast.error(`المبلغ (${amt}) أكبر من إجمالي المتبقي على أقساط هذا الاشتراك (${plan.cap.toFixed(2)})`);
       return;
     }
     setPayLoading(true);
@@ -929,24 +955,41 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                               <input type="text" inputMode="decimal" className="glass-input" placeholder="0.00" value={payAmount}
                                 onChange={e => setPayAmount(normalizeDigits(e.target.value))} style={{ direction: 'ltr', fontSize: '0.8rem', fontWeight: 600 }} />
                               {(() => {
-                                const b = remOf(detail);
-                                const c = subInstalls.length > 0 ? subInstalls.reduce((s, i) => s + remOf(i), 0) : b;
                                 const v = toNumber(payAmount);
-                                if (b > 0 && v > b && v <= c) {
+                                if (!v || v <= 0) return null;
+                                const plan = buildPayPlan(v, detail, subInstalls);
+                                const balance = remOf(detail);
+                                if (plan.over) {
                                   return (
-                                    <div style={{ fontSize: '0.64rem', color: 'var(--secondary)', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                      <Info size={11} /> فائض {(v - b).toFixed(2)} د.أ سيُخصم تلقائياً من أقساط الاشتراك الأخرى
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--danger)', marginTop: 6, padding: '7px 9px', borderRadius: 8, background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+                                      <span>المبلغ ({v.toFixed(2)} د.أ) يتجاوز إجمالي المتبقي على أقساط هذا الاشتراك ({plan.cap.toFixed(2)} د.أ) — لن تُقبل الدفعة</span>
                                     </div>
                                   );
                                 }
-                                if (c > 0 && v > c) {
+                                if (plan.excess <= 0) {
+                                  const full = v >= balance;
                                   return (
-                                    <div style={{ fontSize: '0.64rem', color: 'var(--danger)', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                      <AlertTriangle size={11} /> المبلغ أكبر من إجمالي المتبقي ({c.toFixed(2)} د.أ) — لن تُقبل الدفعة
+                                    <div style={{ fontSize: '0.68rem', color: full ? 'var(--success)' : 'var(--text-muted)', marginTop: 6, padding: '7px 9px', borderRadius: 8, background: full ? 'rgba(22,163,74,0.08)' : 'var(--glass-bg)', border: `1px solid ${full ? 'rgba(22,163,74,0.25)' : 'var(--glass-border)'}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <CheckCircle2 size={13} style={{ flexShrink: 0 }} />
+                                      <span>{full ? `سيُسدَّد هذا القسط بالكامل (${v.toFixed(2)} د.أ)` : `دفعة جزئية على هذا القسط — المتبقي بعدها (${(balance - v).toFixed(2)} د.أ)`}</span>
                                     </div>
                                   );
                                 }
-                                return null;
+                                return (
+                                  <div style={{ fontSize: '0.68rem', marginTop: 6, padding: '8px 10px', borderRadius: 8, background: 'rgba(13,148,136,0.08)', border: '1px solid rgba(13,148,136,0.28)', color: 'var(--text-primary)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 5 }}>
+                                      <Info size={13} color="var(--secondary)" style={{ flexShrink: 0 }} />
+                                      <span>سيُسدَّد هذا القسط بالكامل ({plan.main.toFixed(2)} د.أ) ويُوزَّع الفائض ({plan.excess.toFixed(2)} د.أ) على {plan.targets.length} قسط آخر:</span>
+                                    </div>
+                                    {plan.targets.map(t => (
+                                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '2px 0', fontSize: '0.64rem', borderTop: '1px dashed rgba(13,148,136,0.2)' }}>
+                                        <span>قسط #{t.no}/{t.totalCount} — المتبقي ({t.remain.toFixed(2)})</span>
+                                        <span style={{ fontWeight: 700, color: 'var(--secondary)', fontFamily: 'monospace', direction: 'ltr' }}>{t.amount.toFixed(2)} د.أ</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
                               })()}
                             </div>
 
@@ -1070,9 +1113,9 @@ ${tx.notes ? `<div class="r"><span class="l">ملاحظات</span><span class="v
                                 placeholder="أي ملاحظات إضافية..." style={{ fontSize: '0.8rem' }} />
                             </div>
 
-                            <button className="glass-btn" onClick={handlePay} disabled={payLoading}
-                              style={{ width: '100%', justifyContent: 'center', background: 'var(--success)', color: '#fff', borderColor: 'var(--success)', fontSize: '0.8rem' }}>
-                              {payLoading ? 'جارٍ تسجيل الدفعة...' : `تسديد ${toNumber(payAmount).toFixed(2)} د.أ`}
+                            <button className="glass-btn" onClick={handlePay} disabled={payLoading || (toNumber(payAmount) > 0 && buildPayPlan(toNumber(payAmount), detail, subInstalls).over)}
+                              style={{ width: '100%', justifyContent: 'center', background: 'var(--success)', color: '#fff', borderColor: 'var(--success)', fontSize: '0.8rem', ...(toNumber(payAmount) > 0 && buildPayPlan(toNumber(payAmount), detail, subInstalls).over ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}>
+                              {payLoading ? 'جارٍ تسجيل الدفعة...' : (toNumber(payAmount) > 0 && buildPayPlan(toNumber(payAmount), detail, subInstalls).over ? 'المبلغ غير مقبول — أعلى من المتبقي' : `تسديد ${toNumber(payAmount).toFixed(2)} د.أ`)}
                             </button>
                           </div>
                         )}
