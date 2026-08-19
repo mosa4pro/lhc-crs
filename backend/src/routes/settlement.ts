@@ -497,7 +497,7 @@ router.post('/claims/preview', authMiddleware, requirePermission('finance.claims
       periodYear: parseInt(periodYear),
       totalDue: round2(lines.reduce((s, l) => s + l.remaining, 0)),
       lines,
-      blocked: existing ? claimNo(existing.id, existing.year) : null,
+      blocked: existing && existing.status !== 'VOIDED' ? claimNo(existing.id, existing.year) : null,
     });
   } catch (err: any) {
     console.error(err);
@@ -518,8 +518,15 @@ router.post('/claims', authMiddleware, requirePermission('finance.claims'), asyn
     const existing = await prisma.entitySettlement.findUnique({
       where: { entityId_month_year: { entityId: entity.id, month: parseInt(periodMonth), year: parseInt(periodYear) } },
     });
-    if (existing) {
+    if (existing && existing.status !== 'VOIDED') {
       return res.status(409).json({ error: `توجد مطالبة بالفعل لجهة «${entity.name}» عن ${periodMonth}/${periodYear} (${claimNo(existing.id, existing.year)})` });
+    }
+    if (existing && existing.status === 'VOIDED') {
+      // مطالبة ملغاة بلا أي سندات صرف — تُحذف لتتاح الفترة من جديد (يبقى أثرها في سجل التدقيق)
+      await prisma.entityClaim.deleteMany({
+        where: { entityId: entity.id, periodMonth: parseInt(periodMonth), periodYear: parseInt(periodYear) },
+      });
+      await prisma.entitySettlement.delete({ where: { id: existing.id } });
     }
 
     // حساب الأسطر المستحقة للجهة في الفترة
