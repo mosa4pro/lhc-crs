@@ -13,7 +13,7 @@ import {
   Layers, ChevronDown, ChevronUp, UserCheck, Search, BarChart,
   FileText, CreditCard, Shield, Moon, Sun, LogOut, Activity, Building2,
   Calendar, UserSquare, Briefcase, PieChart, ClipboardList, Receipt,
-  TrendingUp, Wallet, HandCoins, Award,
+  TrendingUp, Wallet, HandCoins, Award, Landmark,
   MessageSquare, Palette, Megaphone, Pin, PinOff, X, Folder, StickyNote,
   MessageCircle
 } from 'lucide-react';
@@ -102,6 +102,7 @@ const MENU_GROUPS: MenuGroup[] = [
     items: [
       { path: '/installments', name: 'إدارة الأقساط', icon: <CreditCard size={15} />, permission: 'finance.installments' },
       { path: '/receipts', name: 'سندات القبض والمصروفات', icon: <FileText size={15} />, permission: 'finance.installments' },
+      { path: '/settlement', name: 'التسوية المالية', icon: <Landmark size={15} />, permission: 'finance.settlements' },
       { path: '/lecturer-accounts', name: 'حسابات المحاضرين', icon: <Wallet size={15} />, permission: 'finance.accounts' },
     ],
   },

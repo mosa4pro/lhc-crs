@@ -35,6 +35,7 @@ const InstructorAccountsPage = lazy(() => import('./pages/InstructorAccountsPage
 const SmartQueriesPage = lazy(() => import('./pages/SmartQueriesPage').then(m => ({ default: m.SmartQueriesPage })));
 const FinInstallmentsPage = lazy(() => import('./pages/FinInstallmentsPage').then(m => ({ default: m.FinInstallmentsPage })));
 const FinReceiptsPage = lazy(() => import('./pages/FinReceiptsPage').then(m => ({ default: m.FinReceiptsPage })));
+const SettlementPage = lazy(() => import('./pages/SettlementPage').then(m => ({ default: m.SettlementPage })));
 const WhatsAppPage = lazy(() => import('./pages/WhatsAppPage').then(m => ({ default: m.WhatsAppPage })));
 const AdminAnnouncementsPage = lazy(() => import('./pages/AdminAnnouncementsPage').then(m => ({ default: m.AdminAnnouncementsPage })));
 const ReportBuilderPage = lazy(() => import('./pages/ReportBuilderPage').then(m => ({ default: m.ReportBuilderPage })));
@@ -176,6 +177,7 @@ const AppRoutes = () => {
         {/* ===== Financial ===== */}
         <Route path="installments" element={<PermissionGuard perm="finance.installments"><FinInstallmentsPage /></PermissionGuard>} />
         <Route path="receipts" element={<PermissionGuard perm="finance.installments"><FinReceiptsPage /></PermissionGuard>} />
+        <Route path="settlement" element={<PermissionGuard perm="finance.settlements"><SettlementPage /></PermissionGuard>} />
 
         {/* ===== Employees ===== */}
         <Route path="employees" element={<PermissionGuard perm="admin.users"><AdminEmployeesPage /></PermissionGuard>} />
