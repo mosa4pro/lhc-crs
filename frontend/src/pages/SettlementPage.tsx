@@ -215,6 +215,23 @@ export const SettlementPage: React.FC = () => {
     finally { setBusy(false); }
   };
 
+  const voidPayment = async (txId: number) => {
+    if (!window.confirm('إلغاء سند الصرف؟ سيبقى السجل في التدقيق ويُوسَم ملغى، وتُعاد حساب المطالبة.')) return;
+    setBusy(true);
+    try {
+      await apiFetch(`/settlements/payments/${txId}/void`, { method: 'POST', body: JSON.stringify({}) });
+      toast.success('تم إلغاء السند وتحديث المطالبة');
+      const id = claimDetail?.claim?.id;
+      if (id) {
+        const fresh = await apiFetch(`/settlements/claims/${id}`);
+        setClaimDetail(fresh);
+      }
+      await loadClaims();
+      await loadRows(f, page);
+    } catch (e: any) { toast.error('فشل إلغاء السند', e.message); }
+    finally { setBusy(false); }
+  };
+
   // Cards configuration
   const cards = useMemo(() => [
     { key: 'totalFees', label: 'إجمالي قيمة التسجيلات', icon: <FileText size={18} />, value: summary.totalFees, sub: `${summary.count} اشتراك`, cls: 'blue' },
@@ -556,7 +573,7 @@ export const SettlementPage: React.FC = () => {
       )}
 
       {/* ===== Claim detail modal ===== */}
-      {claimDetail && <ClaimDetailModal detail={claimDetail} onClose={() => setClaimDetail(null)} busy={busy} onStatus={changeClaimStatus} onPay={setPayClaimId} can={hasPermission} />}
+      {claimDetail && <ClaimDetailModal detail={claimDetail} onClose={() => setClaimDetail(null)} busy={busy} onStatus={changeClaimStatus} onPay={setPayClaimId} onVoidPay={voidPayment} can={hasPermission} />}
 
       {/* ===== Pay modal ===== */}
       {payClaimId && claimDetail && <PayModal detail={claimDetail} onClose={() => setPayClaimId(null)} busy={busy} onSubmit={submitClaimPay} />}
@@ -650,7 +667,7 @@ const RowDetailView: React.FC<{ detail: any }> = ({ detail }) => {
   );
 };
 
-const ClaimDetailModal: React.FC<{ detail: any; onClose: () => void; busy: boolean; onStatus: (id: number, s: string) => void; onPay: (id: number) => void; can: (p: string) => boolean }> = ({ detail, onClose, busy, onStatus, onPay, can }) => {
+const ClaimDetailModal: React.FC<{ detail: any; onClose: () => void; busy: boolean; onStatus: (id: number, s: string) => void; onPay: (id: number) => void; onVoidPay: (txId: number) => void; can: (p: string) => boolean }> = ({ detail, onClose, busy, onStatus, onPay, onVoidPay, can }) => {
   const c = detail.claim;
   const cs = CS[c.status] || CS.PENDING;
   const paid = c.totalPaid > 0.005;
@@ -692,10 +709,15 @@ const ClaimDetailModal: React.FC<{ detail: any; onClose: () => void; busy: boole
           <b>سندات الصرف المسجلة:</b>
           <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
             {detail.payments.map((p: any) => (
-              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', background: 'var(--glass-bg)', borderRadius: 6, padding: '4px 8px' }}>
+              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.68rem', background: 'var(--glass-bg)', borderRadius: 6, padding: '4px 8px' }}>
                 <span style={{ direction: 'ltr' }}>{p.receiptNumber}</span>
                 <span>{PML[p.paymentMethod] || p.paymentMethod} — {fmt(p.amount)} د</span>
                 <span>{formatDate(p.date)}</span>
+                {can('finance.accounts') && (
+                  <button className="glass-btn danger" disabled={busy} onClick={() => onVoidPay(p.id)} style={{ fontSize: '0.62rem', padding: '1px 7px' }}>
+                    <Ban size={10} /> إلغاء السند
+                  </button>
+                )}
               </div>
             ))}
           </div>

@@ -662,7 +662,7 @@ router.post('/claims/:id/pay', authMiddleware, requirePermission('finance.paymen
       if (dup) return res.status(400).json({ error: 'رقم المرجع مستخدم مسبقاً في معاملة أخرى' });
     }
 
-    const remaining = Math.max(0, settlement.balance - payAmount);
+    const remaining = settlement.balance - payAmount;
     if (remaining < -0.005) {
       return res.status(400).json({ error: `المبلغ (${payAmount}) أكبر من رصيد المطالبة المتبقي (${settlement.balance})` });
     }
@@ -750,6 +750,68 @@ router.post('/claims/:id/pay', authMiddleware, requirePermission('finance.paymen
       payment: { id: settlementPayment.id, amount: payAmount, method: paymentMethod, reference: finalRef, receiptNumber },
       settlement: { ...updatedSettlement, claimNumber: claimNoVal, statusLabel: CLAIM_STATUS[newStatus]?.label || newStatus },
     });
+  } catch (err: any) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/settlements/payments/:txId/void — إلغاء سند صرف (يُبقى السجل في التدقيق، يُوسَم VOIDED)
+router.post('/payments/:txId/void', authMiddleware, requirePermission('finance.accounts'), async (req, res) => {
+  try {
+    const tx = await prisma.financialTransaction.findUnique({ where: { id: parseInt(req.params.txId as string) } });
+    if (!tx) return res.status(404).json({ error: 'السند غير موجود' });
+    if (tx.type !== 'PAYMENT') return res.status(400).json({ error: 'هذه المعاملة ليست سند صرف للمطالبات' });
+    if (tx.status === 'VOIDED') return res.status(400).json({ error: 'السند ملغى بالفعل' });
+    if (!tx.entityClaimId) return res.status(400).json({ error: 'السند غير مرتبط بمطالبة' });
+
+    const line = await prisma.entityClaim.findUnique({ where: { id: tx.entityClaimId } });
+    if (!line) return res.status(404).json({ error: 'سطر المطالبة غير موجود' });
+
+    await prisma.financialTransaction.update({ where: { id: tx.id }, data: { status: 'VOIDED' } });
+
+    // إعادة حساب المطالبة من السندات النشطة فقط
+    const lines = await prisma.entityClaim.findMany({
+      where: { entityId: line.entityId, periodMonth: line.periodMonth, periodYear: line.periodYear, status: { not: 'VOIDED' } },
+    });
+    const payTxs = lines.length
+      ? await prisma.financialTransaction.findMany({
+          where: { entityClaimId: { in: lines.map(l => l.id) }, type: 'PAYMENT', status: 'COMPLETED' },
+        })
+      : [];
+    const paidByLine = new Map<number, number>();
+    for (const p of payTxs) paidByLine.set(p.entityClaimId!, (paidByLine.get(p.entityClaimId!) || 0) + p.amount);
+
+    const newPaid = round2(payTxs.reduce((s, p) => s + (p.amount || 0), 0));
+    const settlement = await prisma.entitySettlement.findUnique({
+      where: { entityId_month_year: { entityId: line.entityId, month: line.periodMonth, year: line.periodYear } },
+    });
+    if (settlement) {
+      const newBalance = round2(Math.max(0, settlement.totalDue - newPaid));
+      const newStatus = newBalance <= 0.005 ? 'PAID' : (newPaid > 0.005 ? 'PARTIAL' : 'DRAFT');
+      await prisma.entitySettlement.update({
+        where: { id: settlement.id },
+        data: { totalPaid: newPaid, balance: newBalance, status: newStatus },
+      });
+    }
+
+    // تحديث حالات السطور
+    for (const l of lines) {
+      const lPaid = paidByLine.get(l.id) || 0;
+      const lRem = Math.max(0, l.claimAmount - lPaid);
+      const lStatus = lRem <= 0.005 ? 'PAID' : (lPaid > 0.005 ? 'PARTIAL' : 'DRAFT');
+      if (l.status !== lStatus) await prisma.entityClaim.update({ where: { id: l.id }, data: { status: lStatus } });
+    }
+
+    const actingUser = (req as any).user;
+    await prisma.auditLog.create({
+      data: {
+        userId: actingUser.id, action: 'VOID', entity: 'EntitySettlementPayment',
+        details: JSON.stringify({ transactionId: tx.id, receiptNumber: tx.receiptNumber, amount: tx.amount, reason: req.body?.reason || 'إلغاء سند صرف' }),
+      },
+    });
+
+    res.json({ message: `تم إلغاء السند ${tx.receiptNumber} وتحديث المطالبة`, transaction: { id: tx.id, status: 'VOIDED' }, balance: settlement ? round2(Math.max(0, settlement.totalDue - newPaid)) : 0 });
   } catch (err: any) {
     console.error(err);
     return res.status(500).json({ error: err.message });
