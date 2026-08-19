@@ -470,8 +470,8 @@ router.post('/claims/preview', authMiddleware, requirePermission('finance.claims
     });
 
     const [diplomaSubs, courseSubs] = await Promise.all([
-      prisma.diplomaSubscription.findMany({ where: { entityId: entity.id }, include: { student: true } }),
-      prisma.courseSubscription.findMany({ where: { entityId: entity.id }, include: { student: true } }),
+      prisma.diplomaSubscription.findMany({ where: { entityId: entity.id }, include: { student: true, entity: true, diploma: { select: { id: true, name: true } } } }),
+      prisma.courseSubscription.findMany({ where: { entityId: entity.id }, include: { student: true, entity: true, course: { select: { id: true, name: true } } } }),
     ]);
     const subs: { sub: any; type: 'DIPLOMA' | 'COURSE' }[] = [
       ...diplomaSubs.map(sub => ({ sub, type: 'DIPLOMA' as const })),
@@ -531,8 +531,8 @@ router.post('/claims', authMiddleware, requirePermission('finance.claims'), asyn
 
     // حساب الأسطر المستحقة للجهة في الفترة
     const [diplomaSubs, courseSubs] = await Promise.all([
-      prisma.diplomaSubscription.findMany({ where: { entityId: entity.id }, include: { student: true } }),
-      prisma.courseSubscription.findMany({ where: { entityId: entity.id }, include: { student: true } }),
+      prisma.diplomaSubscription.findMany({ where: { entityId: entity.id }, include: { student: true, entity: true, diploma: { select: { id: true, name: true } } } }),
+      prisma.courseSubscription.findMany({ where: { entityId: entity.id }, include: { student: true, entity: true, course: { select: { id: true, name: true } } } }),
     ]);
     const subs: { sub: any; type: 'DIPLOMA' | 'COURSE' }[] = [
       ...diplomaSubs.map(sub => ({ sub, type: 'DIPLOMA' as const })),
