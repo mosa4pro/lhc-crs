@@ -13,7 +13,7 @@ import {
   Layers, ChevronDown, ChevronUp, UserCheck, Search, BarChart,
   FileText, CreditCard, Shield, Moon, Sun, LogOut, Activity, Building2,
   Calendar, UserSquare, Briefcase, PieChart, ClipboardList, Receipt,
-  TrendingUp, Wallet, HandCoins, Award, Landmark,
+  TrendingUp, Wallet, HandCoins, Award, Landmark, Zap,
   MessageSquare, Palette, Megaphone, Pin, PinOff, X, Folder, StickyNote,
   MessageCircle
 } from 'lucide-react';
@@ -465,8 +465,10 @@ interface TopbarProps {
   reorderPinned: (from: number, to: number) => void;
   chatOpen: boolean;
   setChatOpen: (v: boolean) => void;
+  lowPerf: boolean;
+  toggleLowPerf: () => void;
 }
-const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }: TopbarProps) => {
+const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen, lowPerf, toggleLowPerf }: TopbarProps) => {
   const { user, logout, centerName } = useAuth();
   const { theme, setTheme, contrast, setContrast, accent, setAccent, fontScale, setFontScale } = useTheme();
   const { unreadTotal, unreadPeople, bizzAlert, resetBizzAlert } = useChat();
@@ -692,6 +694,28 @@ const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }
                   <Settings size={15} style={{ opacity: 0.6 }}/> الإعدادات
                 </div>
 
+                <div onClick={toggleLowPerf}
+                  style={{
+                    padding: '10px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                    fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-primary)',
+                    transition: 'all 0.2s', position: 'relative',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'var(--primary-light)';
+                    e.currentTarget.style.color = 'var(--primary)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--text-primary)';
+                  }}
+                >
+                  <Zap size={15} style={{ opacity: 0.6 }}/> وضع الأداء
+                  <span style={{
+                    marginInlineStart: 'auto', fontSize: '0.68rem', fontWeight: 700,
+                    color: lowPerf ? 'var(--success)' : 'var(--text-muted)',
+                  }}>{lowPerf ? 'مفعّل' : 'معطّل'}</span>
+                </div>
+
                 <div style={{ height: 1, background: 'var(--glass-border)', margin: '0 14px' }}/>
 
                 {/* Font size */}
@@ -838,6 +862,14 @@ const Topbar = ({ pinnedPages, togglePin, reorderPinned, chatOpen, setChatOpen }
 // ========== MAIN LAYOUT ==========
 export const Layout = () => {
   const [bgStyle, setBgStyle] = useState<string>('');
+  // وضع الأداء: يلغي مؤثرات الزجاج الثقيلة على الأجهزة الضعيفة
+  const [lowPerf, setLowPerf] = useState<boolean>(() => typeof document !== 'undefined' && document.documentElement.classList.contains('low-perf'));
+  const toggleLowPerf = useCallback(() => {
+    const next = !document.documentElement.classList.contains('low-perf');
+    document.documentElement.classList.toggle('low-perf', next);
+    try { localStorage.setItem('ems_low_perf', next ? 'on' : 'off'); } catch (e) {}
+    setLowPerf(next);
+  }, []);
   const { open: chatCtxOpen, setOpen: setChatCtxOpen } = useChat();
   const [chatOpen, setChatOpenState] = useState(false);
 
@@ -885,7 +917,7 @@ export const Layout = () => {
     <div className="app-layout">
       <Sidebar pinnedPages={pinnedPages} togglePin={togglePin} isPinned={isPinned} />
       <main className="main-content" style={{
-        background: bgStyle ? `url(${bgStyle}) center/cover no-repeat fixed` : undefined,
+        background: bgStyle ? `url(${bgStyle}) center/cover no-repeat ${lowPerf ? 'scroll' : 'fixed'}` : undefined,
         position: 'relative',
       }}>
         {bgStyle && (
@@ -896,7 +928,7 @@ export const Layout = () => {
           }} />
         )}
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <Topbar pinnedPages={pinnedPages} togglePin={togglePin} reorderPinned={reorderPinned} chatOpen={chatOpen} setChatOpen={setChatOpen} />
+          <Topbar pinnedPages={pinnedPages} togglePin={togglePin} reorderPinned={reorderPinned} chatOpen={chatOpen} setChatOpen={setChatOpen} lowPerf={lowPerf} toggleLowPerf={toggleLowPerf} />
           <div className="page-content" style={{
             paddingLeft: chatOpen ? 400 : 0,
             transition: 'padding-left 0.25s cubic-bezier(0.4, 0, 0.2, 1)',

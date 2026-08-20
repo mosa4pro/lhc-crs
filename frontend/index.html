@@ -5,10 +5,31 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f5f7fc" />
+    <meta name="description" content="LHC-CRS نظام إدارة المراكز التعليمية" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" />
+    <!-- Font loads async (non-blocking) → faster first paint; text falls back to system fonts meanwhile -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" /></noscript>
     <title>LHC-CRS</title>
+    <script>
+      // Low-performance / weak-device detection: disables expensive glass blur, heavy
+      // shadows and animations (see .low-perf rules in index.css) so the UI stays fast
+      // on weak phones and old browsers. Users can toggle it manually (وضع الأداء).
+      (function () {
+        try {
+          var weak = false;
+          if (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) weak = true;
+          if (navigator.deviceMemory && navigator.deviceMemory <= 4) weak = true;
+          var ua = navigator.userAgent;
+          if (/(Android|iPhone|iPad)/i.test(ua) && !window.matchMedia('(hover: hover) and (pointer: fine)').matches) weak = true;
+          var saved = null;
+          try { saved = localStorage.getItem('ems_low_perf'); } catch (e) {}
+          var on = saved === 'on' || (saved === null && weak);
+          if (on) document.documentElement.classList.add('low-perf');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

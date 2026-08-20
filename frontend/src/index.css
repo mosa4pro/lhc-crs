@@ -2326,3 +2326,56 @@ textarea.glass-input { resize: vertical; min-height: 80px; }
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================
+   PERFORMANCE MODE — ضعيف الأجهزة / وضع الأداء
+   يلغي تأثيرات الزجاج الباهظة (backdrop-filter/blur) والظلال
+   والحركات على الأجهزة الضعيفة والمتصفحات القديمة لرفع السرعة.
+   يُفعَّل تلقائياً عند كشف جهاز ضعيف أو يدوياً من زر "وضع الأداء".
+   ============================================================ */
+html.low-perf *,
+html.low-perf *::before,
+html.low-perf *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html.low-perf .glass-panel,
+html.low-perf .glass-btn,
+html.low-perf .glass-input,
+html.low-perf .stat-card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+}
+html.low-perf .glass-panel::before,
+html.low-perf .glass-panel::after {
+  display: none !important;
+}
+html.low-perf body,
+html.low-perf .app-bg {
+  background-attachment: scroll !important;
+}
+html.low-perf * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.08s !important;
+}
+html.low-perf {
+  scroll-behavior: auto;
+}
+
+/* احترام تفضيل تقليل الحركة في النظام */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* إيقاف الخلفية الثابتة على الشاشات الصغيرة (توفير إعادة الرسم) */
+@media (max-width: 767px) {
+  body,
+  .app-bg {
+    background-attachment: scroll !important;
+  }
+}
